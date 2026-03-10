@@ -1,39 +1,31 @@
 /* ═══════════════════════════════════════════════════════
-   watchroom — app.js  (v2 — MediaStream architecture)
+   watchroom — app.js  (v3 — fixed MediaStream)
 
-   HOW IT WORKS:
-   ┌─────────────────────────────────────────────────────┐
-   │  HOST                          GUEST                │
-   │  ────                          ─────                │
-   │  Picks local file              Joins room code      │
-   │  vid.captureStream()           Receives MediaStream │
-   │  → peer.call(stream)     →     via peer.on('call')  │
-   │  Controls play/pause/seek      Watches the stream   │
-   │  Sends sync events via         Mirrors them         │
-   │  DataConnection                automatically        │
-   └─────────────────────────────────────────────────────┘
-
-   Zero storage. Zero upload. No file picking for guest.
-   Video + audio travel peer-to-peer via WebRTC.
+   KEY FIXES vs v2:
+   • captureStream() called AFTER first canplay, not loadedmetadata
+   • Host audio: Web Audio API routes sound to speakers independently
+     of the captured stream (so host hears their own video)
+   • Guest stream: srcObject set + autoplay triggered correctly
+   • Audio tracks guaranteed present before calling guest
 
    Sections:
      1.  Theme switcher
      2.  App state
      3.  Refresh / navigation guard
      4.  PeerJS loader & room creation / joining
-     5.  WebRTC — data channel setup (wireConn)
-     6.  WebRTC — media stream (host calls guest)
-     7.  Sync protocol (onData handler)
-     8.  File loading (host only)
-     9.  Player controls (host only — guest is read-only)
-    10.  Progress bar scrubbing (host only)
+     5.  WebRTC — data channel setup
+     6.  WebRTC — media stream (callGuest / receiveStream)
+     7.  Sync protocol (onData)
+     8.  File loading — host only
+     9.  Player controls — host only
+    10.  Progress bar scrubbing — host only
     11.  Video element event listeners
-    12.  Drag-and-drop onto player (host only)
+    12.  Drag-and-drop — host only
     13.  Keyboard shortcuts
-    14.  Controls overlay visibility
+    14.  Controls overlay
     15.  Fullscreen
     16.  Floating chat
-    17.  Chat — send & render messages
+    17.  Chat
     18.  UI helpers
 ═══════════════════════════════════════════════════════ */
 
@@ -51,21 +43,23 @@ function setTheme(t) {
 /* ───────────────────────────────────────────────────────
    2. APP STATE
 ─────────────────────────────────────────────────────── */
-let role       = null;   // 'host' | 'guest'
-let roomCode   = '';
-let peer       = null;   // PeerJS Peer instance
-let conn       = null;   // PeerJS DataConnection (chat + sync signals)
-let mediaCall  = null;   // PeerJS MediaConnection (video stream)
-
-let peerConn    = false; // true once data channel is open
-let mediaLoaded = false; // true once host has file / guest has stream
-let isSyncing   = false; // prevents feedback loops
-let ctrlTimer   = null;
-let fcMin       = false;
+let role            = null;   // 'host' | 'guest'
+let roomCode        = '';
+let peer            = null;   // PeerJS Peer
+let conn            = null;   // PeerJS DataConnection (chat + signals)
+let mediaCall       = null;   // PeerJS MediaConnection (video stream)
+let peerConn        = false;
+let mediaLoaded     = false;
+let isSyncing       = false;
+let ctrlTimer       = null;
+let fcMin           = false;
 let currentFilename = '';
 
-// Host-only: the MediaStream captured from the video element
-let hostStream = null;
+// HOST-ONLY state
+let hostStream = null;   // MediaStream from captureStream()
+let audioCtx   = null;   // AudioContext for routing host's local audio
+let audioSrc   = null;   // MediaElementAudioSourceNode
+let audioDest  = null;   // MediaStreamAudioDestinationNode (merges audio into hostStream)
 
 const vid = document.getElementById('vid');
 
@@ -74,20 +68,14 @@ const vid = document.getElementById('vid');
    3. REFRESH / NAVIGATION GUARD
 ─────────────────────────────────────────────────────── */
 window.addEventListener('beforeunload', e => {
-  if (mediaLoaded || peerConn) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
+  if (mediaLoaded || peerConn) { e.preventDefault(); e.returnValue = ''; }
 });
 
 document.addEventListener('keydown', e => {
   const isRefresh = e.key === 'F5'
     || (e.ctrlKey && e.key === 'r')
     || (e.metaKey && e.key === 'r');
-  if (isRefresh && (mediaLoaded || peerConn)) {
-    e.preventDefault();
-    openM('mRefresh');
-  }
+  if (isRefresh && (mediaLoaded || peerConn)) { e.preventDefault(); openM('mRefresh'); }
 });
 
 
@@ -99,7 +87,7 @@ function loadPeerJS(cb) {
   const s = document.createElement('script');
   s.src    = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
   s.onload = cb;
-  s.onerror = () => toast('Could not load PeerJS — check internet connection');
+  s.onerror = () => toast('Could not load PeerJS — check connection');
   document.head.appendChild(s);
 }
 
@@ -111,22 +99,14 @@ function rndCode() {
 function createRoom() {
   roomCode = rndCode();
   role = 'host';
-
   loadPeerJS(() => {
     peer = new Peer('wr-' + roomCode, { debug: 0 });
-
     peer.on('open', () => {
       enterRoom();
       document.getElementById('bigCode').textContent = roomCode;
       openM('mRoom');
-
-      // Wait for guest's data connection
-      peer.on('connection', c => {
-        conn = c;
-        wireConn();
-      });
+      peer.on('connection', c => { conn = c; wireConn(); });
     });
-
     peer.on('error', e => {
       if (e.type === 'unavailable-id') toast('Code conflict — try again');
       else toast('Peer error: ' + e.type);
@@ -137,39 +117,42 @@ function createRoom() {
 function joinRoom() {
   const code = document.getElementById('joinCode').value.trim().toUpperCase();
   if (code.length < 4) { toast('Enter a valid room code'); return; }
-
   roomCode = code;
   role = 'guest';
-
   loadPeerJS(() => {
     peer = new Peer({ debug: 0 });
-
     peer.on('open', () => {
       enterRoom();
       setDot('wait');
       setPeerLbl('Connecting…');
 
-      // Data channel for chat + sync signals
       conn = peer.connect('wr-' + roomCode, { reliable: true });
       conn.on('open',  () => wireConn());
       conn.on('error', () => toast('Room not found — check the code'));
 
-      // Listen for host's incoming media stream call
-      peer.on('call', incomingCall => {
-        mediaCall = incomingCall;
-        incomingCall.answer(); // answer with no outgoing stream
-        incomingCall.on('stream', remoteStream => receiveStream(remoteStream));
-        incomingCall.on('error',  () => toast('Stream error — try rejoining'));
+      // Listen for the host's video+audio call
+      peer.on('call', incoming => {
+        mediaCall = incoming;
+        incoming.answer();  // no outgoing stream from guest
+        incoming.on('stream', remoteStream => receiveStream(remoteStream));
+        incoming.on('error',  () => toast('Stream error — try rejoining'));
+        incoming.on('close',  () => {
+          // Stream ended (host changed file or disconnected)
+          if (role === 'guest') {
+            mediaLoaded = false;
+            vid.srcObject = null;
+            vid.style.display = 'none';
+          }
+        });
       });
     });
-
     peer.on('error', () => toast('Connection error'));
   });
 }
 
 
 /* ───────────────────────────────────────────────────────
-   5. DATA CHANNEL SETUP  (wireConn)
+   5. DATA CHANNEL SETUP
 ─────────────────────────────────────────────────────── */
 function wireConn() {
   peerConn = true;
@@ -177,7 +160,7 @@ function wireConn() {
   setPeerLbl('Connected');
   setRpPeer('Connected', 'ok');
   document.getElementById('chatOnline').textContent = '2 online';
-  sysMsg(role === 'host' ? 'Guest joined! Starting stream…' : 'Connected! Waiting for host stream…');
+  sysMsg(role === 'host' ? '🎉 Guest joined! Sending stream…' : '🎬 Connected! Waiting for host stream…');
 
   conn.on('data', onData);
   conn.on('close', () => {
@@ -186,19 +169,17 @@ function wireConn() {
     setPeerLbl('Peer left');
     setRpPeer('Disconnected', 'wn');
     document.getElementById('chatOnline').textContent = '1 online';
-    sysMsg('Peer disconnected');
-
+    sysMsg('😢 Peer disconnected');
     if (role === 'guest') {
-      vid.pause();
-      vid.srcObject = null;
       mediaLoaded = false;
+      vid.srcObject = null;
       vid.style.display = 'none';
       showGuestWaiting('Host disconnected', 'Re-join the room to reconnect.');
     }
   });
   conn.on('error', () => { peerConn = false; setDot('off'); });
 
-  // Host: if file already loaded before guest joined, call now
+  // If host already has stream ready, call guest immediately
   if (role === 'host' && mediaLoaded && hostStream) {
     callGuest();
   }
@@ -209,66 +190,153 @@ function wireConn() {
    6. WEBRTC MEDIA STREAM
 ─────────────────────────────────────────────────────── */
 
-/** HOST: Call the guest with the captured video+audio stream. */
+/**
+ * HOST: Build a clean MediaStream from the video element.
+ *
+ * IMPORTANT — why we use Web Audio API:
+ *   captureStream() on a <video> element "takes" the audio tracks.
+ *   Once captured, the browser may silence the local speaker output,
+ *   meaning the host can no longer hear their own video.
+ *
+ *   Fix: we route audio through an AudioContext:
+ *     MediaElementSource → local speaker (so host hears it)
+ *     MediaElementSource → MediaStreamDestination (so stream has audio)
+ *   Then we combine the video tracks from captureStream() with the
+ *   audio tracks from the AudioContext destination into one stream
+ *   that we send to the guest.
+ */
+function buildHostStream() {
+  // --- Video track: use captureStream() for the raw video frames ---
+  let rawStream;
+  try {
+    rawStream = vid.captureStream
+      ? vid.captureStream()
+      : vid.mozCaptureStream
+      ? vid.mozCaptureStream()
+      : null;
+  } catch(e) { rawStream = null; }
+
+  if (!rawStream) {
+    toast('captureStream not supported — please use Chrome or Edge');
+    return false;
+  }
+
+  // --- Audio: Web Audio API so host hears their own video ---
+  try {
+    // Reuse AudioContext if already created (avoid re-creating every time)
+    if (!audioCtx || audioCtx.state === 'closed') {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    // Disconnect old nodes if re-loading
+    if (audioSrc) { try { audioSrc.disconnect(); } catch(e) {} }
+
+    // MediaElementSource reads audio from the <video> element
+    audioSrc  = audioCtx.createMediaElementSource(vid);
+    // Destination 1: the actual speakers (host hears the video)
+    audioSrc.connect(audioCtx.destination);
+    // Destination 2: a MediaStream we can send to the guest
+    audioDest = audioCtx.createMediaStreamDestination();
+    audioSrc.connect(audioDest);
+  } catch(e) {
+    // If Web Audio fails, fall back to direct capture (host may not hear audio)
+    console.warn('AudioContext failed, falling back:', e);
+    audioDest = null;
+  }
+
+  // --- Combine video from captureStream + audio from AudioContext ---
+  const combined = new MediaStream();
+
+  // Add video tracks
+  rawStream.getVideoTracks().forEach(t => combined.addTrack(t));
+
+  // Prefer AudioContext audio tracks; fall back to captureStream audio
+  const audioTracks = audioDest
+    ? audioDest.stream.getAudioTracks()
+    : rawStream.getAudioTracks();
+  audioTracks.forEach(t => combined.addTrack(t));
+
+  hostStream = combined;
+  return true;
+}
+
+/** HOST: Call the guest peer with our combined stream. */
 function callGuest() {
   if (!peerConn || !hostStream) return;
   if (mediaCall) { try { mediaCall.close(); } catch(e) {} }
 
   const guestId = conn.peer;
   mediaCall = peer.call(guestId, hostStream);
-  mediaCall.on('error', () => toast('Stream call failed'));
+  mediaCall.on('error', e => { console.error('call error', e); toast('Stream call error'); });
 
   emit({ type: 'meta', dur: vid.duration, filename: currentFilename });
-  sysMsg('Streaming video + audio to guest…');
-  toast('Streaming to guest!');
+  sysMsg('📡 Streaming to guest…');
+  toast('📡 Streaming video + audio to guest!');
 }
 
-/** GUEST: Receive and attach the incoming MediaStream from host. */
+/** GUEST: Receive and play the incoming stream. */
 function receiveStream(stream) {
-  vid.srcObject = stream;
-  vid.muted = false;
+  console.log('receiveStream tracks:', stream.getTracks().map(t => t.kind + ':' + t.readyState));
 
-  vid.onloadedmetadata = () => {
-    mediaLoaded = true;
-    vid.style.display = 'block';
-    document.getElementById('guest-wait').style.display = 'none';
-    document.getElementById('change-banner').classList.remove('show');
-    setPlayUI(false);
-    showCtrl();
-    sysMsg('Receiving stream from host!');
-    toast('Stream connected — host controls playback');
-  };
+  // Detach any previous stream
+  vid.srcObject = null;
 
-  vid.onerror = () => toast('Stream error — check connection');
+  // Small delay to let the browser settle before attaching new srcObject
+  setTimeout(() => {
+    vid.srcObject = stream;
+    vid.muted = false;  // Guest must hear audio
+
+    // Autoplay: browsers require a user gesture or muted to autoplay.
+    // We attempt play; if blocked, show a "click to watch" prompt.
+    const tryPlay = () => {
+      vid.play().then(() => {
+        mediaLoaded = true;
+        vid.style.display = 'block';
+        document.getElementById('guest-wait').style.display = 'none';
+        document.getElementById('change-banner').classList.remove('show');
+        setPlayUI(true);
+        showCtrl();
+        sysMsg('✅ Stream connected — host controls playback');
+        toast('🍿 Watching with host!');
+      }).catch(err => {
+        console.warn('autoplay blocked:', err);
+        // Show a tap-to-watch overlay
+        showGuestWaiting('Tap to watch 👇', 'Autoplay blocked — tap anywhere to start the stream.');
+        document.getElementById('guest-wait').addEventListener('click', () => {
+          tryPlay();
+        }, { once: true });
+      });
+    };
+
+    vid.onloadedmetadata = () => tryPlay();
+    vid.onerror = e => { console.error('vid error', e); toast('Stream error — try rejoining'); };
+  }, 100);
 }
 
-/** HOST: Re-call guest after changing media file. */
+/** HOST: Re-stream after changing media. */
 function recallGuest() {
-  if (peerConn && hostStream) {
+  if (peerConn) {
     emit({ type: 'media-changed', filename: currentFilename });
-    setTimeout(() => callGuest(), 300);
+    if (hostStream) {
+      // Give the new stream a moment before calling
+      setTimeout(() => callGuest(), 500);
+    }
   }
 }
 
 
 /* ───────────────────────────────────────────────────────
-   7. SYNC PROTOCOL  (data channel messages)
-   HOST sends: play, pause, seek, timeupdate, meta,
-               media-changed, chat
-   GUEST sends: chat only
+   7. SYNC PROTOCOL
 ─────────────────────────────────────────────────────── */
 function onData(d) {
-
-  if (d.type === 'chat') {
-    addMsg(d.text, false);
-    return;
-  }
+  if (d.type === 'chat') { addMsg(d.text, false); return; }
 
   if (d.type === 'play') {
     isSyncing = true;
     if (vid.srcObject) vid.play().catch(() => {});
     setPlayUI(true);
-    flash('play');
+    flash('▶ play');
     isSyncing = false;
     return;
   }
@@ -277,19 +345,18 @@ function onData(d) {
     isSyncing = true;
     if (vid.srcObject) vid.pause();
     setPlayUI(false);
-    flash('pause');
+    flash('⏸ pause');
     isSyncing = false;
     return;
   }
 
   if (d.type === 'seek') {
-    flash('seek ' + fmt(d.time));
+    flash('⏩ ' + fmt(d.time));
     document.getElementById('tCur').textContent = fmt(d.time);
     return;
   }
 
   if (d.type === 'timeupdate') {
-    // Keep guest progress bar in sync with host's position
     const p = d.dur > 0 ? (d.time / d.dur) * 100 : 0;
     document.getElementById('progFill').style.width = p + '%';
     document.getElementById('progKnob').style.left  = p + '%';
@@ -305,7 +372,6 @@ function onData(d) {
   }
 
   if (d.type === 'media-changed') {
-    // Reset guest UI before new stream arrives
     mediaLoaded = false;
     if (vid.srcObject) { vid.pause(); vid.srcObject = null; }
     vid.style.display = 'none';
@@ -314,24 +380,27 @@ function onData(d) {
     document.getElementById('progKnob').style.left  = '0%';
     document.getElementById('tCur').textContent = '0:00';
     document.getElementById('tDur').textContent = '0:00';
-    showGuestWaiting('Host changed media', 'New stream incoming…');
-    sysMsg('Host changed media — new stream incoming…');
+    showGuestWaiting('Host changed media 🔄', 'New stream incoming…');
+    sysMsg('🔄 Host changed media — new stream incoming…');
     return;
   }
 }
 
 
 /* ───────────────────────────────────────────────────────
-   8. FILE LOADING  (host only)
+   8. FILE LOADING — HOST ONLY
 ─────────────────────────────────────────────────────── */
 function loadFile(file, isChange) {
   if (!file || role !== 'host') return;
-
   currentFilename = file.name;
 
-  // Stop & clean up
+  // Stop old stream + video
   vid.pause();
   if (hostStream) { hostStream.getTracks().forEach(t => t.stop()); hostStream = null; }
+
+  // Clean up previous audio routing
+  if (audioSrc) { try { audioSrc.disconnect(); } catch(e) {} audioSrc = null; }
+
   vid.removeAttribute('src');
   vid.srcObject = null;
   vid.load();
@@ -339,68 +408,54 @@ function loadFile(file, isChange) {
   vid.src = URL.createObjectURL(file);
   vid.load();
 
-  vid.onloadedmetadata = () => {
+  // We wait for 'canplay' (not just loadedmetadata) to ensure
+  // audio tracks are actually available in the stream
+  const onCanPlay = () => {
+    vid.removeEventListener('canplay', onCanPlay);
+
     mediaLoaded = true;
     document.getElementById('drop-zone').classList.add('hidden');
     vid.style.display = 'block';
     setPlayUI(false);
     showCtrl();
-
-    // Show change-media buttons
     document.getElementById('btnChgCtrl').style.display = 'flex';
     document.getElementById('rpChgBtn').style.display   = 'flex';
 
-    // Capture stream: video tracks + audio tracks from the element
-    try {
-      hostStream = vid.captureStream
-        ? vid.captureStream()
-        : vid.mozCaptureStream
-        ? vid.mozCaptureStream()
-        : null;
-    } catch(e) { hostStream = null; }
-
-    if (!hostStream) {
-      toast('captureStream not supported — use Chrome, Edge, or Firefox');
-      return;
-    }
+    // Build the combined stream (video from captureStream + audio via AudioContext)
+    const ok = buildHostStream();
+    if (!ok) return;
 
     if (isChange) {
       recallGuest();
-      sysMsg('Media changed — re-streaming to guest.');
-      toast('New file loaded! Re-streaming…');
+      sysMsg('🔄 Media changed — re-streaming to guest.');
+      toast('🎬 New file loaded! Re-streaming…');
     } else {
       if (peerConn) callGuest();
-      else sysMsg('File loaded — waiting for guest to join…');
-      toast('Video loaded! Share the code with your guest.');
+      else sysMsg('📂 File loaded — waiting for guest to join…');
+      toast('🎬 Video ready! Share the code with your guest.');
     }
 
     if (peerConn) emit({ type: 'meta', dur: vid.duration, filename: file.name });
   };
 
+  vid.addEventListener('canplay', onCanPlay);
   vid.onerror = () => toast('Could not load this file — try a different format');
 }
 
-function requestChangeMedia() {
-  if (role !== 'host') return;
-  openM('mChange');
-}
-
-function doChangeMedia() {
-  closeM('mChange');
-  document.getElementById('fileChg').click();
-}
-
-function hideBanner() {
-  document.getElementById('change-banner').classList.remove('show');
-}
+function requestChangeMedia() { if (role === 'host') openM('mChange'); }
+function doChangeMedia()      { closeM('mChange'); document.getElementById('fileChg').click(); }
+function hideBanner()         { document.getElementById('change-banner').classList.remove('show'); }
 
 
 /* ───────────────────────────────────────────────────────
-   9. PLAYER CONTROLS  (host only)
+   9. PLAYER CONTROLS — HOST ONLY
 ─────────────────────────────────────────────────────── */
 function togglePlay() {
-  if (role !== 'host') { toast('Only the host controls playback'); return; }
-  if (!mediaLoaded) { toast('Load a video file first'); return; }
+  if (role !== 'host') { toast('Only the host controls playback 🎬'); return; }
+  if (!mediaLoaded)    { toast('Load a video file first 👆'); return; }
+
+  // Resume AudioContext on first user gesture (browser policy)
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
   if (vid.paused) {
     vid.play().then(() => {
@@ -422,23 +477,47 @@ function skip(s) {
 }
 
 function toggleMute() {
-  vid.muted = !vid.muted;
-  document.getElementById('icVol').style.display  = vid.muted ? 'none' : '';
-  document.getElementById('icMute').style.display = vid.muted ? '' : 'none';
-  document.getElementById('btnMute').classList.toggle('lit', vid.muted);
+  // For host: muting adjusts the AudioContext gain, not vid.muted
+  // (vid.muted would break the audio routing)
+  if (audioCtx && audioSrc) {
+    if (!toggleMute._gainNode) {
+      toggleMute._gainNode = audioCtx.createGain();
+      // Re-route: audioSrc → gainNode → destination + audioDest
+      audioSrc.disconnect();
+      audioSrc.connect(toggleMute._gainNode);
+      toggleMute._gainNode.connect(audioCtx.destination);
+      if (audioDest) toggleMute._gainNode.connect(audioDest);
+    }
+    const muted = toggleMute._gainNode.gain.value === 0;
+    toggleMute._gainNode.gain.value = muted ? 1 : 0;
+    document.getElementById('icVol').style.display  = muted ? '' : 'none';
+    document.getElementById('icMute').style.display = muted ? 'none' : '';
+    document.getElementById('btnMute').classList.toggle('lit', !muted);
+  } else {
+    // Fallback if no AudioContext
+    vid.muted = !vid.muted;
+    document.getElementById('icVol').style.display  = vid.muted ? 'none' : '';
+    document.getElementById('icMute').style.display = vid.muted ? '' : 'none';
+    document.getElementById('btnMute').classList.toggle('lit', vid.muted);
+  }
 }
 
-function setVol(v) { vid.volume = parseFloat(v); }
+function setVol(v) {
+  if (toggleMute._gainNode) {
+    toggleMute._gainNode.gain.value = parseFloat(v);
+  } else {
+    vid.volume = parseFloat(v);
+  }
+}
 
 
 /* ───────────────────────────────────────────────────────
-   10. PROGRESS BAR SCRUBBING  (host only)
+   10. PROGRESS BAR SCRUBBING — HOST ONLY
 ─────────────────────────────────────────────────────── */
 function startScrub(e) {
   if (role !== 'host' || !mediaLoaded) return;
   e.preventDefault();
   doScrub(e);
-
   const mm = e.type === 'mousedown' ? 'mousemove' : 'touchmove';
   const mu = e.type === 'mousedown' ? 'mouseup'   : 'touchend';
   const mv = ev => doScrub(ev);
@@ -459,7 +538,7 @@ function doScrub(e) {
 
 
 /* ───────────────────────────────────────────────────────
-   11. VIDEO ELEMENT EVENT LISTENERS
+   11. VIDEO EVENT LISTENERS
 ─────────────────────────────────────────────────────── */
 vid.addEventListener('timeupdate', () => {
   if (!vid.duration || role !== 'host') return;
@@ -468,8 +547,7 @@ vid.addEventListener('timeupdate', () => {
   document.getElementById('progKnob').style.left  = p + '%';
   document.getElementById('tCur').textContent = fmt(vid.currentTime);
   document.getElementById('tDur').textContent = fmt(vid.duration);
-
-  // Throttled time sync to guest (~every 1s)
+  // Throttled sync to guest
   if (!vid._lastSync || vid.currentTime - vid._lastSync > 1) {
     vid._lastSync = vid.currentTime;
     emit({ type: 'timeupdate', time: vid.currentTime, dur: vid.duration });
@@ -488,7 +566,7 @@ vid.addEventListener('ended', () => setPlayUI(false));
 
 vid.addEventListener('click', () => {
   if (role === 'host') togglePlay();
-  else toast('Only the host controls playback');
+  else toast('Only the host controls playback 🎬');
 });
 
 document.getElementById('playerWrap').addEventListener('dblclick', e => {
@@ -497,7 +575,7 @@ document.getElementById('playerWrap').addEventListener('dblclick', e => {
 
 
 /* ───────────────────────────────────────────────────────
-   12. DRAG-AND-DROP  (host only)
+   12. DRAG-AND-DROP — HOST ONLY
 ─────────────────────────────────────────────────────── */
 const dzEl = document.getElementById('drop-zone');
 const pw   = document.getElementById('playerWrap');
@@ -532,7 +610,7 @@ document.addEventListener('keydown', e => {
 
 
 /* ───────────────────────────────────────────────────────
-   14. CONTROLS OVERLAY VISIBILITY
+   14. CONTROLS OVERLAY
 ─────────────────────────────────────────────────────── */
 function showCtrl() {
   if (!mediaLoaded) return;
@@ -553,10 +631,8 @@ function onMove() { showCtrl(); schedHide(); }
 function toggleFS() {
   if (!document.fullscreenElement)
     document.getElementById('playerWrap').requestFullscreen().catch(() => {});
-  else
-    document.exitFullscreen();
+  else document.exitFullscreen();
 }
-
 document.addEventListener('fullscreenchange', () => {
   const fs = !!document.fullscreenElement;
   document.getElementById('icFS').style.display = fs ? 'none' : '';
@@ -609,7 +685,7 @@ function closeFChat() {
 
 
 /* ───────────────────────────────────────────────────────
-   17. CHAT — SEND & RENDER
+   17. CHAT
 ─────────────────────────────────────────────────────── */
 function sendChat(fromFloat) {
   const inp = document.getElementById(fromFloat ? 'fcIn' : 'chatInp');
@@ -620,12 +696,11 @@ function sendChat(fromFloat) {
 }
 
 function addMsg(text, mine) {
-  const box = document.getElementById('msgs');
+  const box  = document.getElementById('msgs');
   const wrap = document.createElement('div'); wrap.className = 'mb ' + (mine ? 'me' : 'them');
   const who  = document.createElement('div'); who.className = 'mb-who'; who.textContent = mine ? 'you' : 'them';
   const txt  = document.createElement('div'); txt.className = 'mb-txt'; txt.textContent = text;
   wrap.append(who, txt); box.appendChild(wrap); box.scrollTop = box.scrollHeight;
-
   const fb = document.getElementById('fmsgs');
   const fd = document.createElement('div'); fd.className = 'fm ' + (mine ? 'fme' : 'fpe'); fd.textContent = text;
   fb.appendChild(fd); fb.scrollTop = fb.scrollHeight;
@@ -636,7 +711,6 @@ function sysMsg(text) {
   const wrap = document.createElement('div'); wrap.className = 'mb sys';
   const txt  = document.createElement('div'); txt.className = 'mb-txt'; txt.textContent = text;
   wrap.appendChild(txt); box.appendChild(wrap); box.scrollTop = box.scrollHeight;
-
   const fb = document.getElementById('fmsgs');
   const fd = document.createElement('div'); fd.className = 'fm fsy'; fd.textContent = text;
   fb.appendChild(fd); fb.scrollTop = fb.scrollHeight;
@@ -657,11 +731,9 @@ function enterRoom() {
 
   if (role === 'guest') {
     document.getElementById('drop-zone').classList.add('hidden');
-    showGuestWaiting('Waiting for host…', 'The host will stream the video once they load a file.');
-    // Hide host-only controls
+    showGuestWaiting('Waiting for host…', 'The host will stream the video — no file needed on your end.');
     document.getElementById('btnChgCtrl').style.display = 'none';
     document.getElementById('rpChgBtn').style.display   = 'none';
-    // Progress bar is display-only for guest
     document.getElementById('progArea').style.pointerEvents = 'none';
     document.getElementById('progArea').style.cursor = 'default';
   }
@@ -704,16 +776,18 @@ function doLeave() {
   emit({ type: 'chat', text: '— ' + role + ' left the room' });
   setTimeout(() => {
     try { if (hostStream) hostStream.getTracks().forEach(t => t.stop()); } catch(e) {}
-    try { mediaCall && mediaCall.close(); } catch(e) {}
-    try { conn && conn.close(); }           catch(e) {}
-    try { peer && peer.destroy(); }         catch(e) {}
+    try { if (audioSrc)   audioSrc.disconnect(); }                         catch(e) {}
+    try { if (audioCtx)   audioCtx.close(); }                              catch(e) {}
+    try { mediaCall && mediaCall.close(); }                                catch(e) {}
+    try { conn && conn.close(); }                                          catch(e) {}
+    try { peer && peer.destroy(); }                                        catch(e) {}
     location.reload();
   }, 180);
 }
 
 function copyCode() {
   navigator.clipboard.writeText(roomCode).catch(() => {});
-  toast('Copied: ' + roomCode);
+  toast('📋 Copied: ' + roomCode);
 }
 
 function emit(d) {
@@ -736,7 +810,9 @@ function toast(msg) {
 
 window.addEventListener('beforeunload', () => {
   try { if (hostStream) hostStream.getTracks().forEach(t => t.stop()); } catch(e) {}
-  try { mediaCall && mediaCall.close(); } catch(e) {}
-  try { conn && conn.close(); }           catch(e) {}
-  try { peer && peer.destroy(); }         catch(e) {}
+  try { if (audioSrc)   audioSrc.disconnect(); }                         catch(e) {}
+  try { if (audioCtx)   audioCtx.close(); }                              catch(e) {}
+  try { mediaCall && mediaCall.close(); }                                catch(e) {}
+  try { conn && conn.close(); }                                          catch(e) {}
+  try { peer && peer.destroy(); }                                        catch(e) {}
 });
