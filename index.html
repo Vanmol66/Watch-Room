@@ -44,7 +44,7 @@
           <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
         </div>
         <div class="lcard-title">Host a Room</div>
-        <div class="lcard-desc">Open a room, share the code. Both load the same file locally — perfectly synced.</div>
+        <div class="lcard-desc">Open a room, share the code. Load your file — guest receives it as a live stream.</div>
         <button class="btn btn-acc" onclick="createRoom()">
           <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
           Open a Room
@@ -154,21 +154,18 @@
         <div class="cb-icon">🔄</div>
         <div class="cb-text">
           <strong>Host changed the media</strong>
-          <span>Load the same new file to stay in sync.</span>
+          <span>New stream incoming — guest will update automatically.</span>
         </div>
-        <button class="cb-load" onclick="triggerChangeFile()">Load file</button>
+        <button class="cb-load" onclick="hideBanner()">Got it</button>
         <button class="cb-close" onclick="hideBanner()">×</button>
       </div>
 
-      <!-- Hidden file inputs -->
-      <!-- Initial load — host -->
-      <input type="file" id="fileInp"  accept="video/*,audio/*" style="display:none"
+      <!-- Hidden file inputs — HOST only -->
+      <!-- Initial load -->
+      <input type="file" id="fileInp" accept="video/*,audio/*" style="display:none"
         onchange="loadFile(this.files[0], false)">
-      <!-- Initial load — guest -->
-      <input type="file" id="fileInpG" accept="video/*,audio/*" style="display:none"
-        onchange="loadFile(this.files[0], false)">
-      <!-- Media swap (both roles) -->
-      <input type="file" id="fileChg"  accept="video/*,audio/*" style="display:none"
+      <!-- Media swap -->
+      <input type="file" id="fileChg" accept="video/*,audio/*" style="display:none"
         onchange="loadFile(this.files[0], true)">
 
       <!-- Drop zone (host, initial state) -->
@@ -178,7 +175,7 @@
           <div class="dz-title">Drop your video</div>
           <div class="dz-sub">
             File stays 100% on your device — never uploaded.<br>
-            <em>Both you &amp; your peer load their own copy.</em>
+            <em>Your guest receives the stream automatically — no file needed on their end.</em>
           </div>
           <button class="btn-dz" onclick="document.getElementById('fileInp').click()">
             <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -191,16 +188,11 @@
       <div id="guest-wait">
         <div class="gw-inner">
           <div class="gw-e">🍿</div>
-          <div class="gw-title" id="gwTitle">Load your copy</div>
+          <div class="gw-title" id="gwTitle">Waiting for host…</div>
           <div class="gw-sub"   id="gwSub">
-            Load <em>the same video file</em> as your host.<br>
-            Playback syncs automatically.
+            The host will stream the video directly to you.<br>
+            <em>No file needed — just sit back!</em>
           </div>
-          <button class="btn-dz" style="margin-top:8px"
-            onclick="document.getElementById('fileInpG').click()">
-            <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            Choose File
-          </button>
         </div>
       </div><!-- /guest-wait -->
 
@@ -374,7 +366,7 @@
       </div>
     </div>
     <div class="m-body">
-      <p>Both of you load the <strong>same video file</strong> locally. Nothing is uploaded — ever.</p>
+      <p>You load the file. Your guest <strong>receives it as a live stream</strong> — no file needed on their end. Nothing is uploaded.</p>
       <div class="big-code" id="bigCode" onclick="copyCode()"></div>
       <div class="code-hint">👆 click to copy · share via WhatsApp, Discord, anywhere</div>
       <div class="m-btns">
