@@ -162,63 +162,48 @@ function wireConn() {
 }
 
 
-/* ── 6. MEDIA STREAM ────────────────────────────────── */
+/* ── 6. MEDIA STREAM ──────────────────────────────── */
 
 /**
  * HOST: Build stream and call guest.
  *
- * STRATEGY — captureStream() while UNMUTED, then mute:
- *   1. Ensure vid is unmuted so Chrome includes audio in captureStream().
- *   2. Call captureStream() — this gives us live video + audio tracks.
- *   3. Mute vid immediately after so host doesn't hear from vid speakers.
- *   4. Play same ObjectURL in hostAud (hidden <audio>) so host hears audio.
- *   5. Pass hostStream directly to peer.call() — guest receives video+audio.
- *
- * IMPORTANT — never call .stop() on hostStream tracks between file loads.
- *   captureStream() tracks are LIVE references tied to the element.
- *   Stopping them is irreversible and kills the stream permanently.
- *   On file change, just replace hostStream with a new captureStream() call.
- *
- * DO NOT use AudioContext/createMediaElementSource — it hijacks the element's
- *   audio pipeline, causing vid to stop rendering video frames (black screen)
- *   and losing audio for both host and guest.
+ * HOW HOST AUDIO WORKS:
+ *   - vid (the <video> element) is MUTED so captureStream() can
+ *     capture clean audio tracks without Chrome stealing them
+ *     from the speakers.
+ *   - hostAud (a hidden <audio> element) plays the SAME file
+ *     so the host can hear everything normally.
+ *   - The guest receives vid's captureStream() which has both
+ *     video and audio tracks intact.
  */
 function buildHostStream() {
+  // CRITICAL: captureStream() MUST be called BEFORE muting vid.
+  // Chrome only includes audio in the captured stream when the element is unmuted.
+  // Muting first = silent audio track = guest hears nothing.
   try {
-    // Step 1: must be unmuted when captureStream() is called —
-    // Chrome silently drops the audio track if the element is muted.
-    vid.muted = false;
-
-    const stream = vid.captureStream
+    hostStream = vid.captureStream
       ? vid.captureStream()
       : vid.mozCaptureStream
       ? vid.mozCaptureStream()
       : null;
+  } catch(e) { hostStream = null; }
 
-    if (!stream) {
-      toast('captureStream not supported — use Chrome or Edge');
-      return false;
-    }
-
-    hostStream = stream;
-
-    // Step 2: mute vid — host hears via hostAud, guests hear via the stream.
-    vid.muted = true;
-
-    // Step 3: mirror audio in hidden <audio> element so host hears it.
-    if (hostObjURL) {
-      hostAud.src         = hostObjURL;
-      hostAud.currentTime = vid.currentTime;
-      hostAud.volume      = 1;
-      hostAud.muted       = false;
-      if (!vid.paused) hostAud.play().catch(() => {});
-    }
-
-  } catch(e) {
-    console.error('buildHostStream error:', e);
-    toast('Stream build error — try reloading');
-    return false;
+  if (!hostStream) {
+    toast('captureStream not supported — use Chrome or Edge'); return false;
   }
+
+  // NOW mute vid — host will hear audio through hostAud instead
+  vid.muted = true;
+
+  // Mirror in hidden audio element so host hears their own video
+  if (hostObjURL) {
+    hostAud.src         = hostObjURL;
+    hostAud.currentTime = vid.currentTime;
+    hostAud.volume      = 1;
+    hostAud.muted       = false;
+    if (!vid.paused) hostAud.play().catch(() => {});
+  }
+
   return true;
 }
 
@@ -363,12 +348,10 @@ function loadFile(file, isChange) {
   if (!file || role !== 'host') return;
   currentFilename = file.name;
 
-  // Stop old playback. Do NOT call .stop() on hostStream tracks —
-  // captureStream() tracks are live references; stopping them permanently
-  // kills the stream and can't be undone. Just null the reference.
+  // Stop old streams
   vid.pause();
   if (hostAud) { hostAud.pause(); hostAud.src = ''; }
-  hostStream = null;
+  if (hostStream) { hostStream.getTracks().forEach(t => t.stop()); hostStream = null; }
   if (hostObjURL) { URL.revokeObjectURL(hostObjURL); hostObjURL = null; }
 
   // Clear subtitle state from previous file
@@ -613,7 +596,7 @@ function skip(s) {
   if (role !== 'host' || !mediaLoaded) return;
   const t = Math.max(0, Math.min(vid.duration||0, vid.currentTime + s));
   vid.currentTime = t;
-  if (hostAud) hostAud.currentTime = t;
+  if (hostAud) hostAud.currentTime = t; // keep audio in sync
   emit({type:'seek', time:t});
 }
 
@@ -626,8 +609,8 @@ function toggleMute() {
     if (!vid.muted) hideUnmuteBanner();
     return;
   }
-  // Host: only toggle hostAud (local speaker) — vid stays muted permanently for captureStream.
-  // This NEVER touches the stream sent to guest.
+  // Host: only toggle hostAud (local speaker) — vid stays muted permanently for captureStream
+  // This NEVER touches the stream sent to guest
   if (hostAud) {
     hostAud.muted = !hostAud.muted;
     updateMuteUI(hostAud.muted);
@@ -643,11 +626,11 @@ function updateMuteUI(muted) {
 function setVol(v) {
   const val = parseFloat(v);
   if (role === 'host' && hostAud) {
-    hostAud.volume = val;
+    hostAud.volume = val;           // host: controls local audio element only
     if (val === 0) updateMuteUI(true);
     else if (hostAud.muted) { hostAud.muted = false; updateMuteUI(false); }
   } else {
-    vid.volume = val;
+    vid.volume = val;               // guest: controls their own stream playback only
     if (val === 0) updateMuteUI(true);
     else if (vid.muted) { vid.muted = false; updateMuteUI(false); }
   }
