@@ -96,42 +96,74 @@ button {
   padding: 24px 16px;
 }
 
-/* Decorative Diagonal Lines */
+/* Schematic side borders */
+.hatch-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(20px, 8vw, 80px);
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 1px,
+    transparent 10px
+  );
+  z-index: 5;
+  pointer-events: none;
+}
+.hatch-left {
+  left: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+.hatch-right {
+  right: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Animated Diagonal Lines */
 .diagonal-bg {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
   overflow: hidden;
 }
 .diagonal-line {
   position: absolute;
   width: 1px;
-  height: 200%;
+  height: 150%;
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0),
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0)
+    transparent,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent
   );
   transform: rotate(45deg);
+  animation: lineSweep 8s ease-in-out infinite;
 }
-.dl1 {
-  top: -50%;
-  left: 10%;
+.dl-1 {
+  left: 30%;
+  top: -25%;
+  animation-delay: 0s;
 }
-.dl2 {
-  top: -50%;
-  left: 15%;
+.dl-2 {
+  left: 70%;
+  top: -25%;
+  animation-delay: 4s;
 }
-.dl3 {
-  top: -50%;
-  right: 10%;
+@keyframes lineSweep {
+  0%, 100% {
+    transform: rotate(45deg) translateY(-20%);
+    opacity: 0;
+  }
+  50% {
+    transform: rotate(45deg) translateY(20%);
+    opacity: 1;
+  }
 }
-.dl4 {
-  top: -50%;
-  right: 15%;
-}
+
+
 
 /* Animated mesh background blobs */
 .mesh {
@@ -191,7 +223,7 @@ button {
   width: 100%;
   max-width: 1000px;
   text-align: center;
-  gap: 64px;
+  gap: 32px;
 }
 
 .land-logo {
@@ -200,7 +232,7 @@ button {
   line-height: 0.9;
   font-weight: 400;
   color: var(--text);
-  margin-bottom: 24px;
+  margin-bottom: 4px;
   animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .land-logo i {
@@ -212,7 +244,7 @@ button {
   font-family: "Plus Jakarta Sans", sans-serif;
   font-size: 1.1rem;
   color: var(--text2);
-  margin-bottom: 48px;
+  margin-bottom: 20px;
   max-width: 600px;
   letter-spacing: normal;
   text-transform: none;
@@ -328,7 +360,15 @@ button {
 }
 
 .land-card {
-  background: #161616;
+  position: relative;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.04) 1px,
+    transparent 1px,
+    transparent 10px
+  );
+  padding: 12px;
   border: 1px solid #282828;
   border-radius: 12px;
   overflow: hidden;
@@ -340,12 +380,15 @@ button {
     transform 0.2s;
 }
 .land-card:hover {
-  border-color: #333;
+  border-color: #444;
   transform: translateY(-2px);
 }
 
 .land-card-content {
-  padding: 40px 32px;
+  background: #161616;
+  padding: 32px 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   gap: 20px;
