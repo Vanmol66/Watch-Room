@@ -166,6 +166,47 @@
             <button class="cb-close" onclick="hideBanner()">×</button>
           </div>
 
+          <!-- Unmute banner: shown to guest after stream connects (autoplay policy requires muted start) -->
+          <div
+            id="unmute-banner"
+            style="
+              display: none;
+              position: absolute;
+              top: 0; left: 0; right: 0;
+              z-index: 61;
+              background: rgba(10, 10, 18, 0.93);
+              border-bottom: 2px solid var(--accent);
+              padding: 10px 18px;
+              align-items: center;
+              gap: 12px;
+              backdrop-filter: blur(8px);
+            "
+          >
+            <span style="font-size: 1.15rem; flex-shrink: 0">🔊</span>
+            <span style="flex: 1; font-size: 0.82rem; color: var(--text)">
+              <strong>Click to enable audio</strong> — browser requires a tap
+              before playing sound
+            </span>
+            <button
+              onclick="guestEnableAudio()"
+              style="
+                padding: 6px 16px;
+                border-radius: 8px;
+                background: var(--accent);
+                color: #fff;
+                border: none;
+                font-family: inherit;
+                font-size: 0.78rem;
+                font-weight: 700;
+                cursor: pointer;
+                white-space: nowrap;
+                flex-shrink: 0;
+              "
+            >
+              Enable Audio 🔊
+            </button>
+          </div>
+
           <!-- Hidden file inputs — HOST only -->
           <!-- Initial load -->
           <input
@@ -224,6 +265,9 @@
 
           <!-- The video element -->
           <video id="vid" tabindex="-1"></video>
+
+          <!-- HOST audio — vid is muted for captureStream; host hears through this element -->
+          <audio id="hostAud" style="display:none"></audio>
 
           <!-- Player controls overlay -->
           <div id="ctrl">
