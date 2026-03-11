@@ -332,9 +332,6 @@
             onchange="loadFile(this.files[0], true)"
           />
 
-          <!-- Subtitle/CC file input — HOST only (.vtt or .srt) -->
-          <input type="file" id="fileSubtitle" accept=".vtt,.srt" style="display:none" onchange="loadSubtitle(this.files[0])" />
-
           <!-- Drop zone (host, initial state) -->
           <div id="drop-zone">
             <div class="dz-inner">
@@ -372,9 +369,6 @@
             </div>
           </div>
           <!-- /guest-wait -->
-
-          <!-- Subtitle overlay — rendered for both host and guest over the video -->
-          <div id="sub-overlay"></div>
 
           <!-- The video element -->
           <video id="vid" tabindex="-1" playsinline></video>
@@ -472,29 +466,6 @@
 
                 <!-- Sync flash indicator -->
                 <div class="sync-badge" id="syncBadge">⚡ synced</div>
-
-                <!-- Subtitles / CC dropdown -->
-                <div class="sub-wrap" id="subWrap">
-                  <button class="cb" id="btnCC" onclick="toggleSubMenu()" title="Subtitles / CC">
-                    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10 0h2v2h-2zm-6-4h8v2h-8z"/></svg>
-                  </button>
-                  <div class="sub-menu" id="subMenu">
-                    <div class="sub-menu-head">Subtitles / CC</div>
-                    <div id="subTrackList"></div>
-                    <button class="sub-load-btn" id="subLoadBtn" onclick="document.getElementById('fileSubtitle').click()">+ Load .vtt / .srt file</button>
-                  </div>
-                </div>
-
-                <!-- Audio track switcher (shown only when video has multiple audio tracks) -->
-                <div class="sub-wrap" id="audWrap" style="display:none">
-                  <button class="cb" id="btnAud" onclick="toggleAudMenu()" title="Audio Language">
-                    <svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
-                  </button>
-                  <div class="sub-menu" id="audMenu">
-                    <div class="sub-menu-head">Audio Track</div>
-                    <div id="audTrackList"></div>
-                  </div>
-                </div>
 
                 <!-- Change media (hidden until file is loaded, shown by JS) -->
                 <button

@@ -168,40 +168,88 @@ function wireConn() {
  * HOST: Build stream and call guest.
  *
  * HOW HOST AUDIO WORKS:
- *   - vid (the <video> element) is MUTED so captureStream() can
- *     capture clean audio tracks without Chrome stealing them
- *     from the speakers.
- *   - hostAud (a hidden <audio> element) plays the SAME file
- *     so the host can hear everything normally.
- *   - The guest receives vid's captureStream() which has both
- *     video and audio tracks intact.
+ *   - An AudioContext reads audio from vid via createMediaElementSource().
+ *   - A MediaStreamDestination node gives us a clean audio MediaStream.
+ *   - vid is then muted so the host doesn't hear double (they hear via
+ *     hostAud instead, which plays the same ObjectURL).
+ *   - We combine vid's video tracks (from captureStream) with the
+ *     AudioContext audio track into one unified MediaStream for the guest.
+ *
+ * WHY THIS FIXES THE BLACK-VIDEO / SILENT-AUDIO BUG:
+ *   - captureStream() on a local file in Chrome often omits audio tracks
+ *     or returns a silent audio track, because the audio decoder is
+ *     internal and not routed through the capture pipeline.
+ *   - By routing audio through AudioContext → MediaStreamDestination we
+ *     always get a live, real audio track regardless of browser quirks.
+ *   - Video tracks from captureStream() are reliable, so we keep those.
  */
+
+let _audioCtx      = null;   // shared AudioContext across re-loads
+let _audSrcNode    = null;   // MediaElementSourceNode (one per vid element)
+let _audDestNode   = null;   // MediaStreamDestinationNode
+
 function buildHostStream() {
-  // CRITICAL: captureStream() MUST be called BEFORE muting vid.
-  // Chrome only includes audio in the captured stream when the element is unmuted.
-  // Muting first = silent audio track = guest hears nothing.
   try {
-    hostStream = vid.captureStream
+    // ── Step 1: grab video tracks via captureStream ──────────────────
+    const rawStream = vid.captureStream
       ? vid.captureStream()
       : vid.mozCaptureStream
       ? vid.mozCaptureStream()
       : null;
-  } catch(e) { hostStream = null; }
 
-  if (!hostStream) {
-    toast('captureStream not supported — use Chrome or Edge'); return false;
-  }
+    if (!rawStream) {
+      toast('captureStream not supported — use Chrome or Edge'); return false;
+    }
 
-  // NOW mute vid — host will hear audio through hostAud instead
-  vid.muted = true;
+    // ── Step 2: build audio track via AudioContext ───────────────────
+    // Reuse the AudioContext across file changes (browsers limit how many
+    // you can create, and a closed context can't be reopened).
+    if (!_audioCtx || _audioCtx.state === 'closed') {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
 
-  // Mirror in hidden audio element so host hears their own video
-  if (hostObjURL) {
-    hostAud.src         = hostObjURL;
-    hostAud.currentTime = vid.currentTime;
-    hostAud.volume      = 1;
-    hostAud.muted       = false;
-    if (!vid.paused) hostAud.play().catch(() => {});
+    // MediaElementSourceNode can only be created ONCE per element.
+    // On subsequent calls (file change) the old node is still connected,
+    // so we only create it if it doesn't exist yet.
+    if (!_audSrcNode) {
+      _audSrcNode  = _audioCtx.createMediaElementSource(vid);
+    }
+
+    // Always recreate the destination so we get a fresh stream track.
+    _audDestNode = _audioCtx.createMediaStreamDestination();
+
+    // Route: vid element → destination (guest stream)
+    _audSrcNode.connect(_audDestNode);
+
+    // Also connect to speakers so the host hears audio from vid directly.
+    // (We don't use hostAud when AudioContext is active — the context
+    //  itself handles the speaker output via this connection.)
+    _audSrcNode.connect(_audioCtx.destination);
+
+    // Resume context if suspended (browser autoplay policy).
+    if (_audioCtx.state === 'suspended') {
+      _audioCtx.resume().catch(() => {});
+    }
+
+    // ── Step 3: assemble final stream (video tracks + AC audio track) ─
+    const videoTracks = rawStream.getVideoTracks();
+    const audioTrack  = _audDestNode.stream.getAudioTracks()[0];
+
+    if (!audioTrack) {
+      // Fallback: use whatever captureStream gave us
+      hostStream = rawStream;
+    } else {
+      hostStream = new MediaStream([...videoTracks, audioTrack]);
+    }
+
+    // ── Step 4: mute vid element — host hears via AudioContext now ────
+    // hostAud is no longer needed for playback, but we silence vid to
+    // prevent the browser's own output from doubling with the AC output.
+    vid.muted = true;
+
+  } catch(e) {
+    console.error('buildHostStream error:', e);
+    toast('Stream build error — try reloading'); return false;
   }
 
   return true;
@@ -353,6 +401,13 @@ function loadFile(file, isChange) {
   if (hostAud) { hostAud.pause(); hostAud.src = ''; }
   if (hostStream) { hostStream.getTracks().forEach(t => t.stop()); hostStream = null; }
   if (hostObjURL) { URL.revokeObjectURL(hostObjURL); hostObjURL = null; }
+  // Disconnect old AudioContext nodes so they don't stack up on file change.
+  // Keep _audioCtx and _audSrcNode alive (reused); only sever old destination.
+  if (_audDestNode) {
+    try { if (_audSrcNode) _audSrcNode.disconnect(_audDestNode); } catch(e) {}
+    _audDestNode = null;
+  }
+  if (_audSrcNode) { try { _audSrcNode.disconnect(); } catch(e) {} }
 
   // Clear subtitle state from previous file
   vid.querySelectorAll('track').forEach(t => t.remove());
@@ -580,13 +635,12 @@ function togglePlay() {
   if (!mediaLoaded)    { toast('Load a video file first 👆'); return; }
   if (vid.paused) {
     vid.play().then(() => {
-      if (hostAud) hostAud.play().catch(() => {});
+      if (_audioCtx && _audioCtx.state === 'suspended') _audioCtx.resume().catch(() => {});
       setPlayUI(true);
       emit({type:'play', time:vid.currentTime});
     }).catch(() => {});
   } else {
     vid.pause();
-    if (hostAud) hostAud.pause();
     setPlayUI(false);
     emit({type:'pause', time:vid.currentTime});
   }
@@ -596,7 +650,6 @@ function skip(s) {
   if (role !== 'host' || !mediaLoaded) return;
   const t = Math.max(0, Math.min(vid.duration||0, vid.currentTime + s));
   vid.currentTime = t;
-  if (hostAud) hostAud.currentTime = t; // keep audio in sync
   emit({type:'seek', time:t});
 }
 
@@ -609,11 +662,18 @@ function toggleMute() {
     if (!vid.muted) hideUnmuteBanner();
     return;
   }
-  // Host: only toggle hostAud (local speaker) — vid stays muted permanently for captureStream
-  // This NEVER touches the stream sent to guest
-  if (hostAud) {
-    hostAud.muted = !hostAud.muted;
-    updateMuteUI(hostAud.muted);
+  // Host: mute/unmute their local speaker output via AudioContext destination.
+  // vid stays muted permanently — the AC routes audio to speakers + guest stream.
+  if (_audSrcNode && _audioCtx) {
+    // Use a gain node approach: toggle by disconnecting/reconnecting to destination
+    if (!hostAud._acMuted) {
+      try { _audSrcNode.disconnect(_audioCtx.destination); } catch(e) {}
+      hostAud._acMuted = true;
+    } else {
+      try { _audSrcNode.connect(_audioCtx.destination); } catch(e) {}
+      hostAud._acMuted = false;
+    }
+    updateMuteUI(hostAud._acMuted);
   }
 }
 
@@ -625,10 +685,21 @@ function updateMuteUI(muted) {
 
 function setVol(v) {
   const val = parseFloat(v);
-  if (role === 'host' && hostAud) {
-    hostAud.volume = val;           // host: controls local audio element only
+  if (role === 'host') {
+    // Host: control local speaker volume via a gain node on the AudioContext.
+    // If gain node doesn't exist yet, create and insert it.
+    if (_audioCtx && _audSrcNode) {
+      if (!window._hostGainNode) {
+        window._hostGainNode = _audioCtx.createGain();
+        // Re-wire: srcNode → gainNode → destination (speakers only, not dest stream)
+        try { _audSrcNode.disconnect(_audioCtx.destination); } catch(e) {}
+        _audSrcNode.connect(window._hostGainNode);
+        window._hostGainNode.connect(_audioCtx.destination);
+      }
+      window._hostGainNode.gain.value = val;
+    }
     if (val === 0) updateMuteUI(true);
-    else if (hostAud.muted) { hostAud.muted = false; updateMuteUI(false); }
+    else { if (hostAud._acMuted) { hostAud._acMuted = false; } updateMuteUI(false); }
   } else {
     vid.volume = val;               // guest: controls their own stream playback only
     if (val === 0) updateMuteUI(true);
@@ -647,7 +718,6 @@ function startScrub(e) {
   const end = () => {
     document.removeEventListener(mm, mv);
     document.removeEventListener(mu, end);
-    if (hostAud) hostAud.currentTime = vid.currentTime;
     emit({type:'seek', time:vid.currentTime});
   };
   document.addEventListener(mm, mv);
@@ -676,7 +746,7 @@ vid.addEventListener('timeupdate', () => {
 
 vid.addEventListener('play',  () => { if (!isSyncing && role==='host') emit({type:'play',  time:vid.currentTime}); setPlayUI(true);  });
 vid.addEventListener('pause', () => { if (!isSyncing && role==='host') emit({type:'pause', time:vid.currentTime}); setPlayUI(false); });
-vid.addEventListener('ended', () => { if (hostAud) hostAud.pause(); setPlayUI(false); });
+vid.addEventListener('ended', () => { setPlayUI(false); });
 vid.addEventListener('click', () => { if (role==='host') togglePlay(); else toast('Only the host controls playback 🎬'); });
 document.getElementById('playerWrap').addEventListener('dblclick', e => { if (e.target===vid) toggleFS(); });
 
@@ -824,6 +894,8 @@ function doLeave() {
   emit({type:'chat', text:'— '+role+' left the room'});
   setTimeout(() => {
     try { if(hostAud){hostAud.pause();hostAud.src='';} }         catch(e){}
+    try { if(_audSrcNode) _audSrcNode.disconnect(); }             catch(e){}
+    try { if(_audioCtx)   _audioCtx.close(); }                   catch(e){}
     try { if(hostStream) hostStream.getTracks().forEach(t=>t.stop()); } catch(e){}
     try { if(hostObjURL) URL.revokeObjectURL(hostObjURL); }       catch(e){}
     try { mediaCall&&mediaCall.close(); }                          catch(e){}
@@ -846,6 +918,8 @@ function toast(msg) {
 
 window.addEventListener('beforeunload', () => {
   try { if(hostAud){hostAud.pause();hostAud.src='';} }         catch(e){}
+  try { if(_audSrcNode) _audSrcNode.disconnect(); }             catch(e){}
+  try { if(_audioCtx)   _audioCtx.close(); }                   catch(e){}
   try { if(hostStream) hostStream.getTracks().forEach(t=>t.stop()); } catch(e){}
   try { mediaCall&&mediaCall.close(); } catch(e){}
   try { conn&&conn.close(); }           catch(e){}
