@@ -61,6 +61,11 @@ let fcMin           = false;
 let currentFilename = '';
 let hostStream      = null;
 let hostObjURL      = null;   // ObjectURL kept for hostAud element
+let subObjectURLs   = [];     // ObjectURLs for loaded subtitle blobs
+let currentSubIdx   = -1;     // active subtitle track index (-1 = off)
+let subCues         = [];     // parsed cue array [{start,end,text}]
+let subRafId        = null;   // requestAnimationFrame handle
+let subLastText     = null;   // last emitted cue text (avoid duplicate emits)
 
 const vid     = document.getElementById('vid');
 const hostAud = document.getElementById('hostAud'); // hidden <audio> for host's local audio
@@ -329,9 +334,12 @@ function onData(d) {
     document.getElementById('progKnob').style.left  = '0%';
     document.getElementById('tCur').textContent = '0:00';
     document.getElementById('tDur').textContent = '0:00';
+    clearSubOverlay();
     showGuestWaiting('Host changed media 🔄', 'New stream incoming…');
     sysMsg('🔄 Host changed media — new stream incoming…'); return;
   }
+  if (d.type === 'sub-cue') { if (role === 'guest') showSubOverlay(d.text); return; }
+  if (d.type === 'sub-off') { if (role === 'guest') clearSubOverlay(); return; }
 }
 
 
@@ -345,6 +353,15 @@ function loadFile(file, isChange) {
   if (hostAud) { hostAud.pause(); hostAud.src = ''; }
   if (hostStream) { hostStream.getTracks().forEach(t => t.stop()); hostStream = null; }
   if (hostObjURL) { URL.revokeObjectURL(hostObjURL); hostObjURL = null; }
+
+  // Clear subtitle state from previous file
+  vid.querySelectorAll('track').forEach(t => t.remove());
+  subObjectURLs.forEach(u => URL.revokeObjectURL(u));
+  subObjectURLs = []; subCues = []; currentSubIdx = -1; subLastText = null;
+  cancelAnimationFrame(subRafId);
+  clearSubOverlay();
+  const btnCC = document.getElementById('btnCC');
+  if (btnCC) btnCC.classList.remove('lit');
 
   vid.removeAttribute('src'); vid.srcObject = null; vid.load();
 
@@ -386,7 +403,178 @@ function doChangeMedia()      { closeM('mChange'); document.getElementById('file
 function hideBanner()         { document.getElementById('change-banner').classList.remove('show'); }
 
 
-/* ── 9. PLAYER CONTROLS ───────────────────────────── */
+/* ── 9. SUBTITLES & AUDIO TRACKS ─────────────────── */
+
+/* Convert SRT text to WebVTT */
+function srtToVtt(srt) {
+  return 'WEBVTT\n\n' + srt
+    .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    .replace(/(\d+)\n(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1\n$2.$3')
+    .replace(/ --> (\d{2}:\d{2}:\d{2}),(\d{3})/g, ' --> $1.$2');
+}
+
+/* Parse VTT text into [{start, end, text}] */
+function parseVttCues(vttText) {
+  const cues = [];
+  const blocks = vttText.replace(/\r\n/g, '\n').split(/\n\n+/);
+  for (const block of blocks) {
+    const lines = block.trim().split('\n');
+    const ti = lines.findIndex(l => l.includes(' --> '));
+    if (ti < 0) continue;
+    const toSec = s => {
+      const p = s.trim().split(':');
+      return +p[0] * 3600 + +p[1] * 60 + parseFloat(p[2].replace(',', '.'));
+    };
+    const [rawS, rawE] = lines[ti].split(' --> ');
+    const text = lines.slice(ti + 1).join('\n').trim();
+    if (text) cues.push({ start: toSec(rawS), end: toSec(rawE), text });
+  }
+  return cues;
+}
+
+/* Load subtitle file — HOST only */
+function loadSubtitle(file) {
+  if (!file || role !== 'host') return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let text = e.target.result;
+    if (file.name.toLowerCase().endsWith('.srt')) text = srtToVtt(text);
+    const cues = parseVttCues(text);
+    const blob = new Blob([text], { type: 'text/vtt' });
+    const url  = URL.createObjectURL(blob);
+    subObjectURLs.push(url);
+    const track = document.createElement('track');
+    track.kind  = 'subtitles';
+    track.label = file.name.replace(/\.(vtt|srt)$/i, '');
+    track.src   = url;
+    track._cues = cues;
+    vid.appendChild(track);
+    buildSubList();
+    activateSub(vid.textTracks.length - 1);
+    toast('📄 Subtitles: ' + track.label);
+  };
+  reader.readAsText(file);
+  document.getElementById('fileSubtitle').value = '';
+}
+
+/* Activate subtitle track index (-1 = off) */
+function activateSub(idx) {
+  currentSubIdx = idx;
+  // Set all tracks to hidden (we render manually via overlay)
+  for (let i = 0; i < vid.textTracks.length; i++) vid.textTracks[i].mode = 'hidden';
+  cancelAnimationFrame(subRafId);
+  if (idx >= 0 && vid.querySelectorAll('track')[idx]) {
+    subCues = vid.querySelectorAll('track')[idx]._cues || [];
+    document.getElementById('btnCC').classList.add('lit');
+    startSubRaf();
+  } else {
+    subCues = []; subLastText = null;
+    clearSubOverlay();
+    emit({ type: 'sub-off' });
+    document.getElementById('btnCC').classList.remove('lit');
+  }
+  buildSubList();
+  closeSubMenu();
+}
+
+/* RAF loop — find current cue and push to overlay + guest */
+function startSubRaf() {
+  cancelAnimationFrame(subRafId);
+  const tick = () => {
+    subRafId = requestAnimationFrame(tick);
+    const t    = vid.currentTime;
+    const cue  = subCues.find(c => t >= c.start && t < c.end) || null;
+    const text = cue ? cue.text : '';
+    if (text === subLastText) return;
+    subLastText = text;
+    showSubOverlay(text);
+    if (peerConn) emit(text ? { type: 'sub-cue', text } : { type: 'sub-off' });
+  };
+  subRafId = requestAnimationFrame(tick);
+}
+
+/* Show / clear the overlay div */
+function showSubOverlay(text) {
+  const el = document.getElementById('sub-overlay');
+  if (!text) { clearSubOverlay(); return; }
+  el.innerHTML = text.replace(/\n/g, '<br>');
+  el.classList.add('has-text');
+}
+function clearSubOverlay() {
+  subLastText = null;
+  const el = document.getElementById('sub-overlay');
+  if (el) { el.classList.remove('has-text'); el.innerHTML = ''; }
+}
+
+/* Build the subtitle track list inside the dropdown */
+function buildSubList() {
+  const list = document.getElementById('subTrackList');
+  list.innerHTML = '';
+  const offBtn = document.createElement('button');
+  offBtn.className = 'sub-item' + (currentSubIdx === -1 ? ' active' : '');
+  offBtn.textContent = 'Off';
+  offBtn.onclick = () => activateSub(-1);
+  list.appendChild(offBtn);
+  vid.querySelectorAll('track').forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'sub-item' + (i === currentSubIdx ? ' active' : '');
+    btn.textContent = t.label || ('Track ' + (i + 1));
+    btn.onclick = () => activateSub(i);
+    list.appendChild(btn);
+  });
+  // Load button only visible to host
+  const lb = document.getElementById('subLoadBtn');
+  if (lb) lb.style.display = role === 'host' ? '' : 'none';
+}
+
+/* Toggle subtitle dropdown */
+function toggleSubMenu() {
+  closeAudMenu();
+  buildSubList();
+  document.getElementById('subMenu').classList.toggle('open');
+}
+function closeSubMenu() { document.getElementById('subMenu').classList.remove('open'); }
+
+/* Build and toggle audio track dropdown */
+function buildAudList() {
+  const tracks = vid.audioTracks;
+  const wrap   = document.getElementById('audWrap');
+  if (!tracks || tracks.length <= 1) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  const list = document.getElementById('audTrackList');
+  list.innerHTML = '';
+  for (let i = 0; i < tracks.length; i++) {
+    const t = tracks[i];
+    const btn = document.createElement('button');
+    btn.className = 'sub-item' + (t.enabled ? ' active' : '');
+    btn.textContent = t.label || t.language || ('Track ' + (i + 1));
+    btn.onclick = () => {
+      for (let j = 0; j < tracks.length; j++) tracks[j].enabled = (j === i);
+      buildAudList();
+      closeAudMenu();
+      toast('🎵 Audio: ' + (t.label || t.language || 'Track ' + (i + 1)));
+    };
+    list.appendChild(btn);
+  }
+}
+function toggleAudMenu() {
+  closeSubMenu();
+  buildAudList();
+  document.getElementById('audMenu').classList.toggle('open');
+}
+function closeAudMenu() { document.getElementById('audMenu').classList.remove('open'); }
+
+// Refresh audio track list when a new file is ready (host only)
+vid.addEventListener('loadedmetadata', () => { if (role === 'host') buildAudList(); });
+
+// Close both dropdowns on any outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('#subWrap')) closeSubMenu();
+  if (!e.target.closest('#audWrap')) closeAudMenu();
+});
+
+
+/* ── 10. PLAYER CONTROLS ───────────────────────────── */
 function togglePlay() {
   if (role !== 'host') { toast('Only the host controls playback 🎬'); return; }
   if (!mediaLoaded)    { toast('Load a video file first 👆'); return; }

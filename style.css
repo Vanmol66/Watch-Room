@@ -1369,6 +1369,102 @@ input.vol-r::-webkit-slider-thumb {
 .sync-badge.show {
   opacity: 1;
 }
+/* ── Subtitle & Audio track dropdowns ───────────────── */
+.sub-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.sub-menu {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  min-width: 210px;
+  background: rgba(18, 18, 18, 0.98);
+  border: 1.5px solid var(--border2);
+  border-radius: 10px;
+  padding: 6px 0 8px;
+  z-index: 80;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+}
+.sub-menu.open { display: block; }
+
+.sub-menu-head {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text2);
+  padding: 4px 14px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.sub-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-item:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.sub-item.active { color: var(--accent); }
+.sub-item::before { content: ""; display: inline-block; width: 10px; flex-shrink: 0; }
+.sub-item.active::before { content: "✓"; font-size: 0.72rem; }
+
+.sub-load-btn {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text2);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  margin-top: 4px;
+  padding-top: 10px;
+  transition: color 0.1s;
+}
+.sub-load-btn:hover { color: var(--text); }
+
+/* Subtitle text overlay on top of the video */
+#sub-overlay {
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  pointer-events: none;
+  text-align: center;
+  max-width: 88%;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.55;
+  color: #fff;
+  text-shadow: 0 1px 3px #000, 0 0 10px rgba(0,0,0,0.9);
+  background: rgba(0, 0, 0, 0.58);
+  padding: 4px 14px;
+  border-radius: 5px;
+  display: none;
+}
+#sub-overlay.has-text { display: block; }
+
 
 /* ───────────────────────────────────────────────────────
    7. RIGHT PANEL
