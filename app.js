@@ -222,17 +222,25 @@ function callGuest() {
  *     works normally as an independent volume control.
  */
 function receiveStream(stream) {
-  // DON'T call vid.load() — it resets the video decoder and causes quality to
-  // restart from the lowest bitrate. Just swap srcObject directly.
-  vid.srcObject = stream;
-  vid.muted     = true;   // must start muted for autoplay to work
+  // DON'T call vid.load() — resets decoder and drops quality to lowest bitrate
+  vid.srcObject   = stream;
+  vid.muted       = true;    // must start muted — browser blocks autoplay with audio
   vid.playsInline = true;
   vid.style.display = 'block';
 
   let started = false;
+
   const startVideo = () => {
+    // Set started SYNCHRONOUSLY before play() — both loadedmetadata and canplay
+    // can fire almost simultaneously, and play() is async, so checking started
+    // inside .then() is too late — causes multiple play() calls and black screen.
     if (started) return;
     started = true;
+
+    // Remove the other listener immediately so it never fires again
+    vid.removeEventListener('loadedmetadata', startVideo);
+    vid.removeEventListener('canplay',        startVideo);
+
     vid.play().then(() => {
       mediaLoaded = true;
       document.getElementById('guest-wait').style.display = 'none';
@@ -242,9 +250,10 @@ function receiveStream(stream) {
       sysMsg('✅ Stream connected!');
       showUnmuteBanner();
     }).catch(() => {
+      // Autoplay blocked — let user tap to start
       started = false;
       vid.style.display = 'none';
-      showGuestWaiting('Tap to watch 👇', 'Click anywhere to start the stream.');
+      showGuestWaiting('Tap to watch 👇', 'Click to start the stream.');
       document.getElementById('guest-wait').addEventListener('click', () => {
         vid.style.display = 'block';
         startVideo();
@@ -252,8 +261,8 @@ function receiveStream(stream) {
     });
   };
 
-  vid.addEventListener('loadedmetadata', startVideo, { once: true });
-  vid.addEventListener('canplay',        startVideo, { once: true });
+  vid.addEventListener('loadedmetadata', startVideo);
+  vid.addEventListener('canplay',        startVideo);
   vid.onerror = () => toast('Stream error — try rejoining');
 }
 
