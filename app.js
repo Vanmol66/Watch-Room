@@ -172,6 +172,9 @@ function wireConn() {
  *     video and audio tracks intact.
  */
 function buildHostStream() {
+  // CRITICAL: captureStream() MUST be called BEFORE muting vid.
+  // Chrome only includes audio in the captured stream when the element is unmuted.
+  // Muting first = silent audio track = guest hears nothing.
   try {
     hostStream = vid.captureStream
       ? vid.captureStream()
@@ -184,13 +187,15 @@ function buildHostStream() {
     toast('captureStream not supported — use Chrome or Edge'); return false;
   }
 
-  // Mute the video element — audio will come from hostAud instead
+  // NOW mute vid — host will hear audio through hostAud instead
   vid.muted = true;
 
-  // Play the same file in the hidden audio element so host hears it
+  // Mirror in hidden audio element so host hears their own video
   if (hostObjURL) {
-    hostAud.src = hostObjURL;
+    hostAud.src         = hostObjURL;
     hostAud.currentTime = vid.currentTime;
+    hostAud.volume      = 1;
+    hostAud.muted       = false;
     if (!vid.paused) hostAud.play().catch(() => {});
   }
 
@@ -217,48 +222,39 @@ function callGuest() {
  *     works normally as an independent volume control.
  */
 function receiveStream(stream) {
-  // Detach old stream cleanly
-  vid.srcObject = null;
-  vid.load();
+  // DON'T call vid.load() — it resets the video decoder and causes quality to
+  // restart from the lowest bitrate. Just swap srcObject directly.
+  vid.srcObject = stream;
+  vid.muted     = true;   // must start muted for autoplay to work
+  vid.playsInline = true;
+  vid.style.display = 'block';
 
-  setTimeout(() => {
-    vid.srcObject = stream;
-    vid.muted     = true;  // MUST start muted — browser blocks autoplay with audio
-    vid.playsInline = true;
+  let started = false;
+  const startVideo = () => {
+    if (started) return;
+    started = true;
+    vid.play().then(() => {
+      mediaLoaded = true;
+      document.getElementById('guest-wait').style.display = 'none';
+      document.getElementById('change-banner').classList.remove('show');
+      setPlayUI(true);
+      showCtrl();
+      sysMsg('✅ Stream connected!');
+      showUnmuteBanner();
+    }).catch(() => {
+      started = false;
+      vid.style.display = 'none';
+      showGuestWaiting('Tap to watch 👇', 'Click anywhere to start the stream.');
+      document.getElementById('guest-wait').addEventListener('click', () => {
+        vid.style.display = 'block';
+        startVideo();
+      }, { once: true });
+    });
+  };
 
-    // Show video element immediately so it can render frames
-    vid.style.display = 'block';
-
-    let started = false;
-    const startVideo = () => {
-      if (started) return;
-      vid.play().then(() => {
-        started = true;
-        mediaLoaded = true;
-        document.getElementById('guest-wait').style.display = 'none';
-        document.getElementById('change-banner').classList.remove('show');
-        setPlayUI(true);
-        showCtrl();
-        sysMsg('✅ Stream connected!');
-        showUnmuteBanner();
-      }).catch(() => {
-        // Autoplay blocked — show tap-to-watch overlay
-        vid.style.display = 'none';
-        showGuestWaiting('Tap to watch 👇', 'Click anywhere to start the stream.');
-        document.getElementById('guest-wait').addEventListener('click', () => {
-          vid.style.display = 'block';
-          startVideo();
-        }, { once: true });
-      });
-    };
-
-    // Use addEventListener (not onloadedmetadata assignment) so we don't overwrite handlers
-    vid.addEventListener('loadedmetadata', startVideo, { once: true });
-    // Fallback: some browsers fire canplay before loadedmetadata on MediaStream
-    vid.addEventListener('canplay', startVideo, { once: true });
-
-    vid.onerror = () => toast('Stream error — try rejoining');
-  }, 80);
+  vid.addEventListener('loadedmetadata', startVideo, { once: true });
+  vid.addEventListener('canplay',        startVideo, { once: true });
+  vid.onerror = () => toast('Stream error — try rejoining');
 }
 
 /* Unmute banner — shown to guest after stream starts */
