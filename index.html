@@ -7,27 +7,23 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- Theme Toggle -->
-    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
-      <svg id="icSun" viewBox="0 0 24 24" style="display: none;">
-        <circle cx="12" cy="12" r="4"></circle>
-        <path d="M12 2v2"></path>
-        <path d="M12 20v2"></path>
-        <path d="m4.93 4.93 1.41 1.41"></path>
-        <path d="m17.66 17.66 1.41 1.41"></path>
-        <path d="M2 12h2"></path>
-        <path d="M20 12h2"></path>
-        <path d="m6.34 17.66-1.41 1.41"></path>
-        <path d="m19.07 4.93-1.41 1.41"></path>
-      </svg>
-      <svg id="icMoon" viewBox="0 0 24 24">
-        <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
-      </svg>
-    </button>
     <!-- ══════════════════════════════════════════════════
      LANDING PAGE
 ══════════════════════════════════════════════════ -->
     <div id="page-land">
+      <!-- Theme Toggle Landing -->
+      <button class="theme-toggle theme-toggle-land" onclick="toggleTheme()" title="Toggle Theme">
+        <svg class="icSun" viewBox="0 0 24 24" style="display: none;">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2"></path><path d="M12 20v2"></path>
+          <path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path>
+          <path d="M2 12h2"></path><path d="M20 12h2"></path>
+          <path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path>
+        </svg>
+        <svg class="icMoon" viewBox="0 0 24 24">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+        </svg>
+      </button>
       <!-- Schematic Background -->
       <div class="schematic-bg">
         <svg
@@ -203,6 +199,11 @@
      ROOM PAGE
 ══════════════════════════════════════════════════ -->
     <div id="page-room">
+      <div class="room-mesh">
+        <div class="mc mc1"></div>
+        <div class="mc mc2"></div>
+        <div class="mc mc3"></div>
+      </div>
       <!-- ── TOPBAR ── -->
       <div class="tbar">
         <div class="tbar-logo">Watch <i>Room</i></div>
@@ -218,6 +219,18 @@
         </div>
 
         <div class="tbar-right">
+          <button class="theme-toggle theme-toggle-room" onclick="toggleTheme()" title="Toggle Theme">
+            <svg class="icSun" viewBox="0 0 24 24" style="display: none;">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path><path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path><path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+            <svg class="icMoon" viewBox="0 0 24 24">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </button>
           <!-- Room code (click to copy) -->
           <button class="chip chip-btn" id="codeChip" onclick="copyCode()">
             Code: <span id="codeDisp">——</span>

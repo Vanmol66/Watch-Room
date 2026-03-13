@@ -73,23 +73,39 @@
 }
 
 /* Theme Toggle Button */
+/* Global theme toggle defaults */
 .theme-toggle {
-  position: fixed;
-  top: 24px;
-  right: clamp(100px, 12vw, 150px);
-  z-index: 5; 
-  width: 48px;
-  height: 48px;
-  border-radius: 16px; /* Squircle look as seen in images */
-  background: var(--bg2);
-  border: none;
-  color: var(--text);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
 
+.theme-toggle-land {
+  position: absolute;
+  top: 24px;
+  right: clamp(100px, 12vw, 150px);
+  z-index: 100;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+:root[data-theme="midnight"] .theme-toggle-land {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.theme-toggle-room {
+  position: static;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
 }
 
 /* Deeper shadow for dark mode */
@@ -118,18 +134,6 @@
 
 .theme-toggle:active {
   transform: scale(0.95);
-}
-
-/* Hide toggle when room info panel is visible (topbar right) to avoid overlap if needed, 
-   but since it's fixed it might need adjustment per page state if it clashes. 
-   On landing page right:100px is safe because hatch-side is 80px max. 
-   In room page, we might want it relative to the topbar. */
-
-#page-room .theme-toggle {
-  position: absolute;
-  top: 12px;
-  right: 250px; /* Positioned before the code chip */
-  z-index: 10;
 }
 
 /* ───────────────────────────────────────────────────────
@@ -276,7 +280,8 @@ button {
     stroke-dashoffset: 2010;
     opacity: 0;
   }
-  10%, 90% {
+  10%,
+  90% {
     opacity: 0.8;
   }
   100% {
@@ -304,8 +309,13 @@ button {
 }
 
 @keyframes blinkDot {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .schematic-overlay {
@@ -677,9 +687,19 @@ button {
    4. ROOM LAYOUT — TOPBAR
 ─────────────────────────────────────────────────────── */
 #page-room {
-  display: none; /* shown by JS when room is entered */
+  display: none;
   height: 100vh;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.room-mesh {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--bg);
 }
 
 .tbar {
@@ -726,24 +746,24 @@ button {
   border-radius: 4px;
   font-family: "JetBrains Mono", monospace;
   font-size: 0.7rem;
-  border: 1px solid #222;
-  background: #1a1a1a;
-  color: #888;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--muted);
   white-space: nowrap;
   transition: all 0.15s;
 }
 .chip-btn {
   cursor: pointer;
-  color: #fff;
-  border-color: #333;
+  color: var(--text);
+  border-color: var(--border2);
 }
 .chip-btn:hover {
-  border-color: #555;
-  background: #222;
+  border-color: var(--text2);
+  background: var(--surface);
 }
 .chip-role {
-  border-color: #333;
-  color: #fff;
+  border-color: var(--border2);
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -842,17 +862,20 @@ button {
    5. LEFT CHAT SIDEBAR
 ─────────────────────────────────────────────────────── */
 .chat-side {
-  width: 300px;
+  width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
   border-right: 1px solid var(--border);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  z-index: 5;
 }
 .chat-head {
-  padding: 20px 24px;
+  padding: 24px 28px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: var(--accentbg);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -868,14 +891,28 @@ button {
   gap: 7px;
 }
 .chat-head-title svg {
-  width: 16px;
-  height: 16px;
-  fill: #666;
+  width: 18px;
+  height: 18px;
+  fill: var(--accent);
+  opacity: 0.8;
 }
 .chat-online {
   font-family: "JetBrains Mono", monospace;
-  font-size: 0.6rem;
-  color: #666;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.8;
+}
+.chat-online::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px var(--success);
 }
 
 /* Messages scroll area */
@@ -886,7 +923,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--bg);
+  background: transparent;
   min-height: 0;
 }
 
@@ -931,14 +968,18 @@ button {
   font-weight: 400;
 }
 .mb.me .mb-txt {
-  background: var(--bg3);
-  color: var(--text);
-  border: 1px solid var(--border);
+  background: #00bbf0;
+  color: #fff; /* Ensuring text stays white on light blue */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 .mb.them .mb-txt {
-  background: var(--bg2);
-  color: var(--text2);
-  border: 1px solid var(--border);
+  background: #7c73e6;
+  color: #fff; /* Ensuring text stays white on purple */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 .mb.sys .mb-txt {
@@ -955,8 +996,8 @@ button {
 /* Chat text input */
 .chat-input-area {
   border-top: 1px solid var(--border);
-  background: var(--bg);
-  padding: 16px;
+  background: var(--accentbg);
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -965,14 +1006,17 @@ button {
 .chat-input-row {
   display: flex;
   align-items: center;
-  background: var(--bg2);
+  background: var(--accentbg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 12px;
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .chat-input-row:focus-within {
-  border-color: #555;
+  border-color: var(--accent2);
+  background: var(--bg3);
 }
 
 .chat-inp {
@@ -1392,7 +1436,7 @@ button {
   width: 50px;
   height: 50px;
   background: var(--grad);
-  color: #121212;
+  color: var(--bg);
   border: none;
   box-shadow: 0 4px 18px var(--accentglow);
 }

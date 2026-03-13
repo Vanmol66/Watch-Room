@@ -45,14 +45,10 @@ function setTheme(t) {
   document.querySelectorAll('.td,.ts').forEach(b => b.classList.remove('on'));
   document.querySelectorAll(`[data-t="${t}"]`).forEach(b => b.classList.add('on'));
   
-  // Update toggle icons
+  // Update toggle icons for all theme toggles
   const isLight = t === 'light';
-  const icSun = document.getElementById('icSun');
-  const icMoon = document.getElementById('icMoon');
-  if (icSun && icMoon) {
-    icSun.style.display = isLight ? 'block' : 'none';
-    icMoon.style.display = isLight ? 'none' : 'block';
-  }
+  document.querySelectorAll('.icSun').forEach(s => s.style.display = isLight ? 'block' : 'none');
+  document.querySelectorAll('.icMoon').forEach(m => m.style.display = isLight ? 'none' : 'block');
   
   localStorage.setItem('wr-theme', t);
 }
