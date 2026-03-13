@@ -42,6 +42,94 @@
   --success: #00cca3;
   --warn: #ffcc00;
   --grad: #fff; /* Simplified to solid white for high-end look */
+  --mesh1: rgba(255, 255, 255, 0.05);
+  --mesh2: rgba(255, 255, 255, 0.03);
+}
+
+/* Light Theme Variables */
+:root[data-theme="light"] {
+  --bg: #f8f9fa;
+  --bg2: #ffffff;
+  --bg3: #f1f3f5;
+  --surface: #e9ecef;
+  --border: #dee2e6;
+  --border2: #ced4da;
+  --accent: #121212;
+  --accent2: #495057;
+  --accentbg: rgba(0, 0, 0, 0.05);
+  --accentglow: rgba(0, 0, 0, 0.1);
+  --text: #121212;
+  --text2: #495057;
+  --muted: #868e96;
+  --chat-hl: rgba(0, 0, 0, 0.03);
+  --chat-border: rgba(0, 0, 0, 0.1);
+  --pill-me: rgba(0, 0, 0, 0.08);
+  --pill-me-b: rgba(0, 0, 0, 0.15);
+  --pill-them: rgba(0, 0, 0, 0.03);
+  --pill-them-b: rgba(0, 0, 0, 0.05);
+  --grad: #121212;
+  --mesh1: rgba(0, 0, 0, 0.03);
+  --mesh2: rgba(0, 0, 0, 0.02);
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+  position: fixed;
+  top: 24px;
+  right: clamp(100px, 12vw, 150px);
+  z-index: 5; 
+  width: 48px;
+  height: 48px;
+  border-radius: 16px; /* Squircle look as seen in images */
+  background: var(--bg2);
+  border: none;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+
+}
+
+/* Deeper shadow for dark mode */
+:root[data-theme="midnight"] .theme-toggle {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.theme-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="midnight"] .theme-toggle:hover {
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+}
+
+.theme-toggle svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Hide toggle when room info panel is visible (topbar right) to avoid overlap if needed, 
+   but since it's fixed it might need adjustment per page state if it clashes. 
+   On landing page right:100px is safe because hatch-side is 80px max. 
+   In room page, we might want it relative to the topbar. */
+
+#page-room .theme-toggle {
+  position: absolute;
+  top: 12px;
+  right: 250px; /* Positioned before the code chip */
+  z-index: 10;
 }
 
 /* ───────────────────────────────────────────────────────
@@ -94,6 +182,7 @@ button {
   position: relative;
   overflow: hidden;
   padding: 24px 16px;
+  z-index: 1; /* Create stacking context below toggle */
 }
 
 /* Schematic side borders */
@@ -104,8 +193,8 @@ button {
   width: clamp(20px, 8vw, 80px);
   background: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(255, 255, 255, 0.04) 1px,
+    var(--accentbg),
+    var(--accentbg) 1px,
     transparent 1px,
     transparent 10px
   );
@@ -123,16 +212,16 @@ button {
 .land-watermark svg {
   width: 100px;
   height: 100px;
-  fill: #888;
+  fill: var(--muted);
 }
 
 .hatch-left {
   left: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid var(--border);
 }
 .hatch-right {
   right: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid var(--border);
 }
 
 /* Schematic Background */
@@ -145,7 +234,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.6;
+  opacity: 0.4;
 }
 
 .schematic-bg svg {
@@ -155,7 +244,7 @@ button {
 }
 
 .electric-line-base {
-  stroke: #27272a;
+  stroke: var(--border2);
   stroke-width: 1.5;
   fill: none;
   opacity: 0;
@@ -163,11 +252,11 @@ button {
 }
 
 .electric-line-pulse {
-  stroke: white;
-  stroke-width: 2;
+  stroke: var(--accent); /* Uses #121212 in light mode, very visible */
+  stroke-width: 2.5;
   stroke-linecap: round;
   fill: none;
-  filter: drop-shadow(0px 0px 4px rgba(168, 85, 247, 0.8));
+  filter: drop-shadow(0px 0px 6px var(--accentglow));
   stroke-dasharray: 10 2000;
   stroke-dashoffset: 2010;
   opacity: 0;
@@ -198,7 +287,7 @@ button {
 
 .schematic-rect {
   fill: url(#diagonalHatch);
-  stroke: #27272a;
+  stroke: var(--border2);
   stroke-width: 1.5;
   opacity: 0;
   animation: fadeInLine 1s ease-in-out forwards;
@@ -206,7 +295,8 @@ button {
 }
 
 .schematic-dot {
-  fill: #27272a;
+  fill: var(--accent);
+  opacity: 0.8;
 }
 
 .pulse-dot {
@@ -221,9 +311,10 @@ button {
 .schematic-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, transparent 0%, #121212 90%);
+  background: radial-gradient(circle at center, transparent 0%, var(--bg) 90%);
   opacity: 0.8;
   z-index: 1;
+  pointer-events: none;
 }
 
 /* Animated mesh background blobs */
@@ -244,7 +335,7 @@ button {
 .mc1 {
   width: 520px;
   height: 520px;
-  background: var(--accent);
+  background: var(--mesh1);
   top: -160px;
   left: -120px;
   animation-delay: 0s;
@@ -252,7 +343,7 @@ button {
 .mc2 {
   width: 420px;
   height: 420px;
-  background: var(--accent2);
+  background: var(--mesh2);
   bottom: -120px;
   right: -100px;
   animation-delay: 3s;
@@ -260,7 +351,7 @@ button {
 .mc3 {
   width: 320px;
   height: 320px;
-  background: var(--accent);
+  background: var(--mesh1);
   top: 35%;
   left: 55%;
   animation-delay: 6s;
@@ -374,8 +465,8 @@ button {
 
 .btn-main {
   padding: 12px 24px;
-  background: #fff;
-  color: #000;
+  background: var(--accent);
+  color: var(--bg);
   border-radius: 4px;
   font-weight: 600;
   font-size: 0.95rem;
@@ -387,27 +478,27 @@ button {
   gap: 8px;
 }
 .btn-main:hover {
-  background: #e0e0e0;
+  background: var(--accent2);
   transform: translateY(-1px);
 }
 
 .btn-outline {
   padding: 12px 24px;
   background: transparent;
-  color: #fff;
+  color: var(--text);
   border-radius: 4px;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .btn-outline:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--accent);
+  background: var(--accentbg);
 }
 
 /* Reference Cards Redesigned as separate Code Cards */
@@ -424,13 +515,13 @@ button {
   position: relative;
   background: repeating-linear-gradient(
     45deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(255, 255, 255, 0.04) 1px,
+    var(--accentbg),
+    var(--accentbg) 1px,
     transparent 1px,
     transparent 10px
   );
   padding: 12px;
-  border: 1px solid #282828;
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   text-align: left;
@@ -446,10 +537,10 @@ button {
 }
 
 .land-card-content {
-  background: #161616;
+  background: var(--bg2);
   padding: 32px 28px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -458,23 +549,23 @@ button {
 
 .lcard-title {
   font-size: 1.25rem;
-  color: #fff;
+  color: var(--text);
   font-weight: 600;
   margin-bottom: 4px;
 }
 .lcard-desc {
   font-size: 0.95rem;
-  color: #777;
+  color: var(--text2);
   line-height: 1.6;
   margin-bottom: auto;
 }
 
 /* Inputs inside cards */
 .inp {
-  background: #222;
-  border: 1px solid #333;
+  background: var(--bg3);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: #fff;
+  color: var(--text);
   font-family: "JetBrains Mono", monospace;
   font-size: 0.9rem;
   padding: 12px 16px;
@@ -496,21 +587,21 @@ button {
   width: 100%;
   padding: 14px;
   background: transparent;
-  color: #fff;
+  color: var(--text);
   border-radius: 8px;
   font-family: "Plus Jakarta Sans", sans-serif;
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid #333;
+  border: 1px solid var(--border2);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .btn-card:hover {
-  border-color: #555;
-  background: #222;
+  border-color: var(--accent);
+  background: var(--bg3);
 }
 
 /* Generic buttons */
@@ -597,8 +688,8 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: #121212;
-  border-bottom: 1px solid #222;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   z-index: 100;
   gap: 16px;
@@ -607,7 +698,7 @@ button {
   font-family: "Instrument Serif", serif;
   font-size: 1.8rem;
   font-style: italic;
-  color: #fff;
+  color: var(--text);
   line-height: 1;
   white-space: nowrap;
   flex-shrink: 0;
@@ -755,13 +846,13 @@ button {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: #121212;
-  border-right: 1px solid #222;
+  background: var(--bg);
+  border-right: 1px solid var(--border);
 }
 .chat-head {
   padding: 20px 24px;
-  border-bottom: 1px solid #222;
-  background: #121212;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -771,7 +862,7 @@ button {
   font-family: "Instrument Serif", serif;
   font-size: 1.4rem;
   font-style: italic;
-  color: #fff;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 7px;
@@ -795,7 +886,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #121212;
+  background: var(--bg);
   min-height: 0;
 }
 
@@ -840,14 +931,14 @@ button {
   font-weight: 400;
 }
 .mb.me .mb-txt {
-  background: #222;
-  color: #fff;
-  border: 1px solid #333;
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 .mb.them .mb-txt {
-  background: #1a1a1a;
-  color: #ccc;
-  border: 1px solid #282828;
+  background: var(--bg2);
+  color: var(--text2);
+  border: 1px solid var(--border);
 }
 
 .mb.sys .mb-txt {
@@ -863,8 +954,8 @@ button {
 
 /* Chat text input */
 .chat-input-area {
-  border-top: 1px solid #222;
-  background: #121212;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -874,8 +965,8 @@ button {
 .chat-input-row {
   display: flex;
   align-items: center;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--bg2);
+  border: 1px solid var(--border);
   border-radius: 4px;
   overflow: hidden;
   transition: border-color 0.2s;
@@ -902,9 +993,9 @@ button {
   height: 34px;
   margin: 6px;
   border-radius: 6px;
-  background: #222;
-  border: 1px solid #333;
-  color: #fff;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1107,12 +1198,12 @@ button {
   font-family: "Plus Jakarta Sans", sans-serif;
   font-size: 0.86rem;
   font-weight: 700;
-  background: #ffffff;
-  color: #121212;
-  border: none;
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--border2);
   cursor: pointer;
   pointer-events: all;
-  box-shadow: 0 4px 22px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 22px var(--accentglow);
   transition: all 0.2s;
   display: flex;
   align-items: center;
@@ -1509,7 +1600,7 @@ input.vol-r::-webkit-slider-thumb {
   right: 18px;
   width: 256px;
   max-height: 360px;
-  background: rgba(0, 0, 0, 0.86);
+  background: color-mix(in srgb, var(--bg2) 90%, transparent);
   border: 1px solid var(--chat-border);
   border-radius: 14px;
   display: none;
@@ -1548,7 +1639,7 @@ input.vol-r::-webkit-slider-thumb {
   border-bottom: 1px solid var(--chat-border);
   cursor: move;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--accentbg);
 }
 .fc-title {
   font-family: "Bebas Neue", sans-serif;
@@ -1564,7 +1655,7 @@ input.vol-r::-webkit-slider-thumb {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--accentbg);
   border: none;
   color: rgba(255, 255, 255, 0.45);
   cursor: pointer;
@@ -1615,13 +1706,13 @@ input.vol-r::-webkit-slider-thumb {
 }
 .fm.fpe {
   background: var(--pill-them);
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--text2);
   border: 1px solid var(--pill-them-b);
   border-bottom-left-radius: 3px;
 }
 .fm.fsy {
   background: transparent;
-  color: rgba(255, 255, 255, 0.22);
+  color: var(--muted);
   font-family: "JetBrains Mono", monospace;
   font-size: 0.57rem;
   text-align: center;
@@ -1633,21 +1724,21 @@ input.vol-r::-webkit-slider-thumb {
 .fc-inp-row {
   display: flex;
   border-top: 1px solid var(--chat-border);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--accentbg);
   flex-shrink: 0;
 }
 .fc-inp {
   flex: 1;
   background: none;
   border: none;
-  color: #fff;
+  color: var(--text);
   font-family: "Plus Jakarta Sans", sans-serif;
   font-size: 0.74rem;
   padding: 9px 11px;
   outline: none;
 }
 .fc-inp::placeholder {
-  color: rgba(255, 255, 255, 0.22);
+  color: var(--muted);
 }
 .fc-send {
   padding: 9px 12px;
@@ -1671,7 +1762,7 @@ input.vol-r::-webkit-slider-thumb {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.76);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 1000;
   align-items: center;
   justify-content: center;
@@ -1689,7 +1780,7 @@ input.vol-r::-webkit-slider-thumb {
   max-width: 400px;
   overflow: hidden;
   animation: mIn 0.25s ease both;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
 }
 @keyframes mIn {
   from {
@@ -1852,9 +1943,9 @@ input.vol-r::-webkit-slider-thumb {
   fill: currentColor;
 }
 .mba {
-  background: #ffffff;
-  color: #121212;
-  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.1);
+  background: var(--accent);
+  color: var(--bg);
+  box-shadow: 0 4px 14px var(--accentglow);
 }
 .mba:hover {
   opacity: 0.88;

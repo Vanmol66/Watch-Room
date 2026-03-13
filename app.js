@@ -44,7 +44,29 @@ function setTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   document.querySelectorAll('.td,.ts').forEach(b => b.classList.remove('on'));
   document.querySelectorAll(`[data-t="${t}"]`).forEach(b => b.classList.add('on'));
+  
+  // Update toggle icons
+  const isLight = t === 'light';
+  const icSun = document.getElementById('icSun');
+  const icMoon = document.getElementById('icMoon');
+  if (icSun && icMoon) {
+    icSun.style.display = isLight ? 'block' : 'none';
+    icMoon.style.display = isLight ? 'none' : 'block';
+  }
+  
+  localStorage.setItem('wr-theme', t);
 }
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'midnight';
+  setTheme(current === 'light' ? 'midnight' : 'light');
+}
+
+// Initial theme load
+(function initTheme() {
+  const saved = localStorage.getItem('wr-theme') || 'midnight';
+  setTheme(saved);
+})();
 
 
 /* ── 2. STATE ─────────────────────────────────────── */
