@@ -874,6 +874,16 @@ function doLeave() {
   }, 180);
 }
 
+function cancelRoom() {
+  // Destroy the peer connection and go back to the landing page.
+  closeM('mRoom');
+  try { peer && peer.destroy(); } catch(e) {}
+  peer = null; conn = null; mediaCall = null;
+  role = null; roomCode = ''; peerConn = false; mediaLoaded = false;
+  document.getElementById('page-room').style.display = 'none';
+  document.getElementById('page-land').style.display = 'flex';
+}
+
 function copyCode() { navigator.clipboard.writeText(roomCode).catch(()=>{}); toast('📋 Copied: '+roomCode); }
 function emit(d)    { if(conn&&conn.open) try{conn.send(d);}catch(e){} }
 function fmt(s)     { if(isNaN(s)||s==null) return '0:00'; return Math.floor(s/60)+':'+Math.floor(s%60).toString().padStart(2,'0'); }
