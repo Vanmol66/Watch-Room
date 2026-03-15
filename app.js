@@ -1,51 +1,23 @@
-/* ═══════════════════════════════════════════════════════
-   watchroom — app.js  (v4 — audio fixed)
+/* watchroom — app.js
 
-   AUDIO STRATEGY:
-   ┌──────────────────────────────────────────────────┐
-   │  HOST                                            │
-   │  <video id="vid"> — muted, feeds captureStream  │
-   │  <audio id="hostAud"> — same ObjectURL, audible │
-   │  → host sees video + hears audio normally        │
-   │  → captureStream() captures video+audio tracks   │
-   │    and sends them to guest via WebRTC            │
-   │                                                  │
-   │  GUEST                                           │
-   │  <video id="vid"> srcObject = remoteStream       │
-   │  Starts muted (browser autoplay policy)          │
-   │  "Click for audio" banner → unmutes on click     │
-   │  Mute button works independently                 │
-   └──────────────────────────────────────────────────┘
+   Audio: host vid is muted (feeds captureStream), hostAud plays the sound.
+   Guest gets the stream via WebRTC, starts muted (autoplay policy),
+   unmute banner lets them turn sound on.
 
-   Sections:
-     1.  Theme
-     2.  State
-     3.  Refresh guard
-     4.  PeerJS / room creation / joining
-     5.  Data channel (wireConn)
-     6.  Media stream (host → guest)
-     7.  Sync protocol (onData)
-     8.  File loading (host only)
-     9.  Player controls
-    10.  Scrubbing
-    11.  Video event listeners
-    12.  Drag-and-drop
-    13.  Keyboard shortcuts
-    14.  Controls overlay
-    15.  Fullscreen
-    16.  Floating chat
-    17.  Chat messages
-    18.  UI helpers
-═══════════════════════════════════════════════════════ */
+   1. Theme  2. State  3. Refresh guard  4. PeerJS  5. Data channel
+   6. Media stream  7. Sync  8. File loading  9. Subtitles
+   10. Controls  11. Scrubbing  12. Video events  13. Drag-drop
+   14. Keys  15. Controls overlay  16. Fullscreen  17. Float chat
+   18. Chat  19. Helpers */
 
 
-/* ── 1. THEME ─────────────────────────────────────── */
+/* 1. Theme */
 function setTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   document.querySelectorAll('.td,.ts').forEach(b => b.classList.remove('on'));
   document.querySelectorAll(`[data-t="${t}"]`).forEach(b => b.classList.add('on'));
   
-  // Update toggle icons for all theme toggles
+  // Sync sun/moon icons
   const isLight = t === 'light';
   document.querySelectorAll('.icSun').forEach(s => s.style.display = isLight ? 'block' : 'none');
   document.querySelectorAll('.icMoon').forEach(m => m.style.display = isLight ? 'none' : 'block');
@@ -58,14 +30,14 @@ function toggleTheme() {
   setTheme(current === 'light' ? 'midnight' : 'light');
 }
 
-// Initial theme load
+// Load saved theme
 (function initTheme() {
   const saved = localStorage.getItem('wr-theme') || 'midnight';
   setTheme(saved);
 })();
 
 
-/* ── 2. STATE ─────────────────────────────────────── */
+/* 2. State */
 let role            = null;
 let roomCode        = '';
 let peer            = null;
@@ -78,18 +50,18 @@ let ctrlTimer       = null;
 let fcMin           = false;
 let currentFilename = '';
 let hostStream      = null;
-let hostObjURL      = null;   // ObjectURL kept for hostAud element
-let subObjectURLs   = [];     // ObjectURLs for loaded subtitle blobs
-let currentSubIdx   = -1;     // active subtitle track index (-1 = off)
-let subCues         = [];     // parsed cue array [{start,end,text}]
-let subRafId        = null;   // requestAnimationFrame handle
-let subLastText     = null;   // last emitted cue text (avoid duplicate emits)
+let hostObjURL      = null;   // for hostAud
+let subObjectURLs   = [];     // subtitle blob URLs
+let currentSubIdx   = -1;     // active sub (-1 = off)
+let subCues         = [];     // [{start,end,text}]
+let subRafId        = null;   // rAF handle
+let subLastText     = null;   // dedup emits
 
 const vid     = document.getElementById('vid');
-const hostAud = document.getElementById('hostAud'); // hidden <audio> for host's local audio
+const hostAud = document.getElementById('hostAud'); // host's local audio
 
 
-/* ── 3. REFRESH GUARD ─────────────────────────────── */
+/* 3. Refresh guard */
 window.addEventListener('beforeunload', e => {
   if (mediaLoaded || peerConn) { e.preventDefault(); e.returnValue = ''; }
 });
@@ -99,7 +71,7 @@ document.addEventListener('keydown', e => {
 });
 
 
-/* ── 4. PEERJS / ROOM ─────────────────────────────── */
+/* 4. PeerJS / rooms */
 function loadPeerJS(cb) {
   if (window.Peer) { cb(); return; }
   const s = document.createElement('script');
@@ -140,7 +112,7 @@ function joinRoom() {
       conn.on('open',  () => wireConn());
       conn.on('error', () => toast('Room not found — check the code'));
 
-      // Receive the host's video+audio stream
+      // Receive host's stream
       peer.on('call', incoming => {
         mediaCall = incoming;
         incoming.answer(); // no outgoing stream from guest
@@ -157,12 +129,12 @@ function joinRoom() {
 }
 
 
-/* ── 5. DATA CHANNEL ──────────────────────────────── */
+/* 5. Data channel */
 function wireConn() {
   peerConn = true;
   setDot('on'); setPeerLbl('Connected'); setRpPeer('Connected', 'ok');
   document.getElementById('chatOnline').textContent = '2 online';
-  sysMsg(role === 'host' ? '🎉 Guest joined! Sending stream…' : '🎬 Connected! Waiting for stream…');
+  sysMsg(role === 'host' ? '🎉 Guest joined — sending stream…' : '🎬 Connected — waiting for stream…');
 
   conn.on('data', onData);
   conn.on('close', () => {
@@ -180,33 +152,17 @@ function wireConn() {
 }
 
 
-/* ── 6. MEDIA STREAM ────────────────────────────────── */
+/* 6. Media stream */
 
 /**
- * buildHostStream() — async, returns Promise<bool>.
- *
- * BLACK SCREEN ROOT CAUSE:
- *   captureStream() on a <video> sends only a black/frozen frame when:
- *     (a) the element is MUTED at call-time, OR
- *     (b) the element is PAUSED (no frames flowing through the encoder).
- *   Chrome requires the element to be UN-MUTED and ACTIVELY PLAYING when
- *   captureStream() is called.
- *
- * FIX — exact sequence:
- *   1. vid.muted = false            unmute before capture
- *   2. vid.play() + 1 rAF tick      ensure frames are flowing
- *   3. captureStream()              capture live video+audio
- *   4. vid.pause()                  pause back (host controls playback)
- *   5. vid.muted = true             mute vid; host hears via hostAud
- *   6. hostAud mirrors same src     host hears their own video
- *
- * NEVER use AudioContext/createMediaElementSource — it hijacks the element
- * pipeline and causes a permanent black screen.
+ * Build host stream. Vid must be unmuted + playing when captureStream()
+ * runs or you get a black screen. Sequence: unmute → play → capture →
+ * pause → mute vid → route audio to hostAud.
  */
 function buildHostStream() {
   return new Promise(resolve => {
     try {
-      vid.muted = false; // must be unmuted at capture time
+      vid.muted = false; // unmute for capture
 
       const doCapture = () => {
         let stream = null;
@@ -225,7 +181,7 @@ function buildHostStream() {
 
         hostStream = stream;
 
-        // Mute vid — host hears through hostAud, guest hears through stream.
+        // Mute vid — host hears via hostAud, guest via stream
         vid.muted = true;
         vid.pause();
         if (hostObjURL) {
@@ -237,7 +193,7 @@ function buildHostStream() {
         resolve(true);
       };
 
-      // Video must be playing so the encoder has live frames to send.
+      // Need a playing frame for the encoder
       vid.play().then(() => requestAnimationFrame(doCapture))
                 .catch(() => doCapture()); // fallback if play() fails
 
@@ -255,36 +211,29 @@ function callGuest() {
   mediaCall = peer.call(conn.peer, hostStream);
   mediaCall.on('error', () => toast('Stream call error'));
   emit({type:'meta', dur:vid.duration, filename:currentFilename});
-  sysMsg('📡 Streaming to guest…');
-  toast('📡 Streaming video + audio to guest!');
+  sysMsg('📡 Streaming to guest');
+  toast('📡 Now streaming to guest');
 }
 
 /**
- * GUEST: Receive stream.
- *
- * HOW GUEST AUDIO WORKS:
- *   - Stream starts MUTED so browser autoplay policy allows it.
- *   - An "🔊 Click for audio" banner appears.
- *   - On any click/tap → unmute. From then on the mute button
- *     works normally as an independent volume control.
+ * Guest receives stream. Starts muted (autoplay policy).
+ * Unmute banner appears; after click, mute button works normally.
  */
 function receiveStream(stream) {
-  // DON'T call vid.load() — resets decoder and drops quality to lowest bitrate
+  // Don't call vid.load() — resets decoder
   vid.srcObject   = stream;
-  vid.muted       = true;    // must start muted — browser blocks autoplay with audio
+  vid.muted       = true;    // autoplay needs muted
   vid.playsInline = true;
   vid.style.display = 'block';
 
   let started = false;
 
   const startVideo = () => {
-    // Set started SYNCHRONOUSLY before play() — both loadedmetadata and canplay
-    // can fire almost simultaneously, and play() is async, so checking started
-    // inside .then() is too late — causes multiple play() calls and black screen.
+    // Set flag synchronously — both events can fire almost together
     if (started) return;
     started = true;
 
-    // Remove the other listener immediately so it never fires again
+    // Remove the other listener
     vid.removeEventListener('loadedmetadata', startVideo);
     vid.removeEventListener('canplay',        startVideo);
 
@@ -297,7 +246,7 @@ function receiveStream(stream) {
       sysMsg('✅ Stream connected!');
       showUnmuteBanner();
     }).catch(() => {
-      // Autoplay blocked — let user tap to start
+      // Autoplay blocked — tap to start
       started = false;
       vid.style.display = 'none';
       showGuestWaiting('Tap to watch 👇', 'Click to start the stream.');
@@ -313,7 +262,7 @@ function receiveStream(stream) {
   vid.onerror = () => toast('Stream error — try rejoining');
 }
 
-/* Unmute banner — shown to guest after stream starts */
+/* Unmute banner */
 function showUnmuteBanner() {
   const b = document.getElementById('unmute-banner');
   if (b) b.style.display = 'flex';
@@ -323,7 +272,7 @@ function hideUnmuteBanner() {
   if (b) b.style.display = 'none';
 }
 
-/* Guest explicitly enables audio from the unmute banner */
+/* Guest taps unmute */
 function guestEnableAudio() {
   vid.muted = false;
   vid._audioEnabled = true;
@@ -339,7 +288,7 @@ function recallGuest() {
 }
 
 
-/* ── 7. SYNC PROTOCOL ─────────────────────────────── */
+/* 7. Sync */
 function onData(d) {
   if (d.type === 'chat') { addMsg(d.text, false); return; }
 
@@ -385,18 +334,18 @@ function onData(d) {
 }
 
 
-/* ── 8. FILE LOADING — HOST ONLY ──────────────────── */
+/* 8. File loading (host) */
 function loadFile(file, isChange) {
   if (!file || role !== 'host') return;
   currentFilename = file.name;
 
-  // Reset state. Never .stop() captureStream tracks — they are live refs.
+  // Reset. Don't .stop() captureStream tracks — those are live refs.
   vid.pause();
   if (hostAud) { hostAud.pause(); hostAud.src = ''; }
   hostStream = null;
   if (hostObjURL) { URL.revokeObjectURL(hostObjURL); hostObjURL = null; }
 
-  // Clear subtitle state from previous file
+  // Clear old subtitle state
   vid.querySelectorAll('track').forEach(t => t.remove());
   subObjectURLs.forEach(u => URL.revokeObjectURL(u));
   subObjectURLs = []; subCues = []; currentSubIdx = -1; subLastText = null;
@@ -421,16 +370,16 @@ function loadFile(file, isChange) {
     document.getElementById('btnChgCtrl').style.display = 'flex';
     document.getElementById('rpChgBtn').style.display   = 'flex';
 
-    // buildHostStream is async: plays 1 frame, captures, then resolves.
+    // buildHostStream: plays 1 frame, captures, resolves
     buildHostStream().then(ok => {
       if (!ok) return;
       if (isChange) {
         recallGuest();
-        toast('🎬 New file loaded! Re-streaming…');
+        toast('🎬 New file loaded — re-streaming…');
       } else {
         if (peerConn) callGuest();
-        else sysMsg('📂 File ready — waiting for guest to join…');
-        toast('🎬 Video ready! Share the code with your guest.');
+        else sysMsg('📂 File ready — waiting for a guest');
+        toast('🎬 Video ready — share the code');
       }
       if (peerConn) emit({type:'meta', dur:vid.duration, filename:file.name});
     });
@@ -445,9 +394,9 @@ function doChangeMedia()      { closeM('mChange'); document.getElementById('file
 function hideBanner()         { document.getElementById('change-banner').classList.remove('show'); }
 
 
-/* ── 9. SUBTITLES & AUDIO TRACKS ─────────────────── */
+/* 9. Subtitles & audio tracks */
 
-/* Convert SRT text to WebVTT */
+/* SRT → VTT */
 function srtToVtt(srt) {
   return 'WEBVTT\n\n' + srt
     .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
@@ -455,7 +404,7 @@ function srtToVtt(srt) {
     .replace(/ --> (\d{2}:\d{2}:\d{2}),(\d{3})/g, ' --> $1.$2');
 }
 
-/* Parse VTT text into [{start, end, text}] */
+/* Parse VTT into cues */
 function parseVttCues(vttText) {
   const cues = [];
   const blocks = vttText.replace(/\r\n/g, '\n').split(/\n\n+/);
@@ -474,7 +423,7 @@ function parseVttCues(vttText) {
   return cues;
 }
 
-/* Load subtitle file — HOST only */
+/* Load subtitle (host) */
 function loadSubtitle(file) {
   if (!file || role !== 'host') return;
   const reader = new FileReader();
@@ -499,10 +448,10 @@ function loadSubtitle(file) {
   document.getElementById('fileSubtitle').value = '';
 }
 
-/* Activate subtitle track index (-1 = off) */
+/* Activate sub track (-1 = off) */
 function activateSub(idx) {
   currentSubIdx = idx;
-  // Set all tracks to hidden (we render manually via overlay)
+  // We render manually via overlay
   for (let i = 0; i < vid.textTracks.length; i++) vid.textTracks[i].mode = 'hidden';
   cancelAnimationFrame(subRafId);
   if (idx >= 0 && vid.querySelectorAll('track')[idx]) {
@@ -519,7 +468,7 @@ function activateSub(idx) {
   closeSubMenu();
 }
 
-/* RAF loop — find current cue and push to overlay + guest */
+/* RAF loop — push current cue to overlay + guest */
 function startSubRaf() {
   cancelAnimationFrame(subRafId);
   const tick = () => {
@@ -535,7 +484,7 @@ function startSubRaf() {
   subRafId = requestAnimationFrame(tick);
 }
 
-/* Show / clear the overlay div */
+/* Sub overlay */
 function showSubOverlay(text) {
   const el = document.getElementById('sub-overlay');
   if (!text) { clearSubOverlay(); return; }
@@ -548,7 +497,7 @@ function clearSubOverlay() {
   if (el) { el.classList.remove('has-text'); el.innerHTML = ''; }
 }
 
-/* Build the subtitle track list inside the dropdown */
+/* Build sub track list dropdown */
 function buildSubList() {
   const list = document.getElementById('subTrackList');
   list.innerHTML = '';
@@ -564,12 +513,12 @@ function buildSubList() {
     btn.onclick = () => activateSub(i);
     list.appendChild(btn);
   });
-  // Load button only visible to host
+  // Load btn — host only
   const lb = document.getElementById('subLoadBtn');
   if (lb) lb.style.display = role === 'host' ? '' : 'none';
 }
 
-/* Toggle subtitle dropdown */
+/* Toggle sub dropdown */
 function toggleSubMenu() {
   closeAudMenu();
   buildSubList();
@@ -577,7 +526,7 @@ function toggleSubMenu() {
 }
 function closeSubMenu() { document.getElementById('subMenu').classList.remove('open'); }
 
-/* Build and toggle audio track dropdown */
+/* Audio track dropdown */
 function buildAudList() {
   const tracks = vid.audioTracks;
   const wrap   = document.getElementById('audWrap');
@@ -606,20 +555,20 @@ function toggleAudMenu() {
 }
 function closeAudMenu() { document.getElementById('audMenu').classList.remove('open'); }
 
-// Refresh audio track list when a new file is ready (host only)
+// Refresh audio tracks on new file
 vid.addEventListener('loadedmetadata', () => { if (role === 'host') buildAudList(); });
 
-// Close both dropdowns on any outside click
+// Close dropdowns on outside click
 document.addEventListener('click', e => {
   if (!e.target.closest('#subWrap')) closeSubMenu();
   if (!e.target.closest('#audWrap')) closeAudMenu();
 });
 
 
-/* ── 10. PLAYER CONTROLS ───────────────────────────── */
+/* 10. Controls */
 function togglePlay() {
-  if (role !== 'host') { toast('Only the host controls playback 🎬'); return; }
-  if (!mediaLoaded)    { toast('Load a video file first 👆'); return; }
+  if (role !== 'host') { toast('Only the host controls playback'); return; }
+  if (!mediaLoaded)    { toast('Pick a video first'); return; }
   if (vid.paused) {
     vid.play().then(() => {
       if (hostAud) hostAud.play().catch(() => {});
@@ -644,14 +593,14 @@ function skip(s) {
 
 function toggleMute() {
   if (role === 'guest') {
-    // Guest: toggle their own local video volume only — completely independent of host
+    // Guest: toggle local volume only
     vid.muted = !vid.muted;
     updateMuteUI(vid.muted);
     // If they were on the unmute banner and press M, hide it
     if (!vid.muted) hideUnmuteBanner();
     return;
   }
-  // Host: toggle local speaker only — vid stays muted, stream to guest unaffected.
+  // Host: toggle local audio only — guest stream unaffected
   if (hostAud) {
     hostAud.muted = !hostAud.muted;
     updateMuteUI(hostAud.muted);
@@ -678,7 +627,7 @@ function setVol(v) {
 }
 
 
-/* ── 10. SCRUBBING — HOST ONLY ────────────────────── */
+/* 11. Scrubbing (host) */
 function startScrub(e) {
   if (role !== 'host' || !mediaLoaded) return;
   e.preventDefault(); doScrub(e);
@@ -701,7 +650,7 @@ function doScrub(e) {
 }
 
 
-/* ── 11. VIDEO EVENT LISTENERS ────────────────────── */
+/* 12. Video events */
 vid.addEventListener('timeupdate', () => {
   if (!vid.duration || role !== 'host') return;
   const p = (vid.currentTime / vid.duration) * 100;
@@ -718,11 +667,11 @@ vid.addEventListener('timeupdate', () => {
 vid.addEventListener('play',  () => { if (!isSyncing && role==='host') emit({type:'play',  time:vid.currentTime}); setPlayUI(true);  });
 vid.addEventListener('pause', () => { if (!isSyncing && role==='host') emit({type:'pause', time:vid.currentTime}); setPlayUI(false); });
 vid.addEventListener('ended', () => { if (hostAud) hostAud.pause(); setPlayUI(false); });
-vid.addEventListener('click', () => { if (role==='host') togglePlay(); else toast('Only the host controls playback 🎬'); });
+vid.addEventListener('click', () => { if (role==='host') togglePlay(); else toast('Only the host controls playback'); });
 document.getElementById('playerWrap').addEventListener('dblclick', e => { if (e.target===vid) toggleFS(); });
 
 
-/* ── 12. DRAG AND DROP — HOST ONLY ───────────────── */
+/* 13. Drag & drop (host) */
 const dzEl = document.getElementById('drop-zone');
 const pw   = document.getElementById('playerWrap');
 pw.addEventListener('dragover',  e => { if (role!=='host') return; e.preventDefault(); dzEl.classList.add('drag-over'); });
@@ -734,7 +683,7 @@ pw.addEventListener('drop', e => {
 });
 
 
-/* ── 13. KEYBOARD SHORTCUTS ───────────────────────── */
+/* 14. Keys */
 document.addEventListener('keydown', e => {
   if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
   if      (e.code==='Space')      { e.preventDefault(); togglePlay(); }
@@ -746,7 +695,7 @@ document.addEventListener('keydown', e => {
 });
 
 
-/* ── 14. CONTROLS OVERLAY ─────────────────────────── */
+/* 15. Controls overlay */
 function showCtrl() { if (!mediaLoaded) return; document.getElementById('ctrl').classList.add('show'); }
 function schedHide() {
   clearTimeout(ctrlTimer);
@@ -755,7 +704,7 @@ function schedHide() {
 function onMove() { showCtrl(); schedHide(); }
 
 
-/* ── 15. FULLSCREEN ───────────────────────────────── */
+/* 16. Fullscreen */
 function toggleFS() {
   if (!document.fullscreenElement) document.getElementById('playerWrap').requestFullscreen().catch(()=>{});
   else document.exitFullscreen();
@@ -771,7 +720,7 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 
-/* ── 16. FLOATING CHAT ────────────────────────────── */
+/* 17. Floating chat */
 function toggleFChat() {
   const fc = document.getElementById('fchat');
   fc.classList.toggle('open');
@@ -788,7 +737,7 @@ function closeFChat(){ document.getElementById('fchat').classList.remove('open')
 })();
 
 
-/* ── 17. CHAT ─────────────────────────────────────── */
+/* 18. Chat */
 function sendChat(ff) {
   const inp=document.getElementById(ff?'fcIn':'chatInp');
   const t=inp.value.trim(); if(!t) return;
@@ -815,7 +764,7 @@ function sysMsg(text) {
 }
 
 
-/* ── 18. UI HELPERS ───────────────────────────────── */
+/* 19. Helpers */
 function enterRoom() {
   document.getElementById('page-land').style.display = 'none';
   document.getElementById('page-room').style.display = 'flex';
@@ -826,7 +775,7 @@ function enterRoom() {
 
   if (role === 'guest') {
     document.getElementById('drop-zone').classList.add('hidden');
-    showGuestWaiting('Waiting for host…', 'The host will stream the video — no file needed on your end.');
+    showGuestWaiting('Waiting for host…', 'The host streams the video to you — no file needed.');
     document.getElementById('btnChgCtrl').style.display = 'none';
     document.getElementById('rpChgBtn').style.display   = 'none';
     document.getElementById('progArea').style.pointerEvents = 'none';
@@ -875,7 +824,7 @@ function doLeave() {
 }
 
 function cancelRoom() {
-  // Destroy the peer connection and go back to the landing page.
+  // Tear down and reload
   closeM('mRoom');
   try { peer && peer.destroy(); } catch(e) {}
   peer = null; conn = null; mediaCall = null;

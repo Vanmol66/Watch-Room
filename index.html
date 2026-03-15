@@ -7,11 +7,9 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- ══════════════════════════════════════════════════
-     LANDING PAGE
-══════════════════════════════════════════════════ -->
+    <!-- LANDING PAGE -->
     <div id="page-land">
-      <!-- Theme Toggle Landing -->
+      <!-- Theme toggle -->
       <button class="theme-toggle theme-toggle-land" onclick="toggleTheme()" title="Toggle Theme">
         <svg class="icSun" viewBox="0 0 24 24" style="display: none;">
           <circle cx="12" cy="12" r="4"></circle>
@@ -24,7 +22,7 @@
           <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
         </svg>
       </button>
-      <!-- Schematic Background -->
+      <!-- Background lines -->
       <div class="schematic-bg">
         <svg
           viewBox="0 0 1440 900"
@@ -48,7 +46,7 @@
           </defs>
 
           <g transform="translate(100, 50)">
-            <!-- Left Line (Mirrored) -->
+            <!-- Left line -->
             <path class="electric-line-base" d="M440 400 L240 200 H0" />
             <path
               class="electric-line-pulse"
@@ -56,7 +54,7 @@
               style="--duration: 7s; --delay: 0.5s"
             />
 
-            <!-- Line 4 (Right side) -->
+            <!-- Right line -->
             <path class="electric-line-base" d="M1000 400 L1200 200 H1400" />
             <path
               class="electric-line-pulse"
@@ -64,7 +62,7 @@
               style="--duration: 7s; --delay: 0.2s"
             />
 
-            <!-- Dots Group -->
+            <!-- Dots -->
             <g class="schematic-dots" style="opacity: 0.5">
               <rect
                 class="schematic-dot"
@@ -116,11 +114,11 @@
         <div class="schematic-overlay"></div>
       </div>
 
-      <!-- Schematic Side Borders -->
+      <!-- Side borders -->
       <div class="hatch-side hatch-left"></div>
       <div class="hatch-side hatch-right"></div>
 
-      <!-- Top Watermark -->
+      <!-- Watermark -->
       <div class="land-watermark">
         <svg viewBox="0 0 15 15">
           <path
@@ -134,22 +132,22 @@
       </div>
 
       <div class="land-inner">
-        <!-- Logo & tagline -->
+        <!-- Logo -->
         <h1 class="land-logo">Watch <i>Room</i></h1>
         <p class="land-sub">
-          Sync local video files with anyone. Zero storage, zero accounts, just
-          direct peer-to-peer streaming.
+          Watch videos together. No uploads, no accounts — straight from your
+          browser.
         </p>
 
-        <!-- Host / Join cards -->
+        <!-- Cards -->
         <div class="land-actions-grid">
-          <!-- HOST CARD -->
+          <!-- Host -->
           <div class="land-card">
             <div class="land-card-content">
               <div class="lcard-title">Host a Room</div>
               <div class="lcard-desc">
-                Load your local video file. Your guest receives it as a live
-                stream without uploading anything.
+                Pick a video from your computer. Your guest watches it live —
+                nothing gets uploaded.
               </div>
               <button class="btn btn-card" onclick="createRoom()">
                 Open Room
@@ -157,13 +155,12 @@
             </div>
           </div>
 
-          <!-- JOIN CARD -->
+          <!-- Join -->
           <div class="land-card">
             <div class="land-card-content">
               <div class="lcard-title">Join a Room</div>
               <div class="lcard-desc">
-                Enter the room code shared by the host to start watching the
-                stream in sync.
+                Paste the code from the host and start watching.
               </div>
               <input
                 class="inp"
@@ -187,34 +184,31 @@
           &nbsp;·&nbsp; Works on GitHub Pages free tier
         </div>
         <div class="land-device-note">
-          This application is specifically optimized for laptops and tablets to
-          provide the best synchronized viewing experience.
+          Works best on laptops and tablets.
         </div>
       </div>
       <!-- /land-inner -->
     </div>
     <!-- /page-land -->
 
-    <!-- ══════════════════════════════════════════════════
-     ROOM PAGE
-══════════════════════════════════════════════════ -->
+    <!-- ROOM PAGE -->
     <div id="page-room">
       <div class="room-mesh">
         <div class="mc mc1"></div>
         <div class="mc mc2"></div>
         <div class="mc mc3"></div>
       </div>
-      <!-- ── TOPBAR ── -->
+      <!-- Topbar -->
       <div class="tbar">
         <div class="tbar-logo">Watch <i>Room</i></div>
 
         <div class="tbar-mid">
-          <!-- Peer connection status -->
+          <!-- Status chip -->
           <div class="chip">
             <div class="pdot" id="peerDot"></div>
             <span id="peerLbl">Waiting…</span>
           </div>
-          <!-- Host / Guest role badge -->
+          <!-- Role badge -->
           <div class="chip chip-role" id="roleChip"></div>
         </div>
 
@@ -231,7 +225,7 @@
               <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
             </svg>
           </button>
-          <!-- Room code (click to copy) -->
+          <!-- Room code -->
           <button class="chip chip-btn" id="codeChip" onclick="copyCode()">
             Code: <span id="codeDisp">——</span>
           </button>
@@ -240,9 +234,9 @@
       </div>
       <!-- /tbar -->
 
-      <!-- ── THREE-COLUMN BODY ── -->
+      <!-- Body -->
       <div class="room-body">
-        <!-- ══ LEFT: CHAT SIDEBAR ══ -->
+        <!-- Chat sidebar -->
         <div class="chat-side" id="chatSide">
           <div class="chat-head">
             <div class="chat-head-title">
@@ -256,10 +250,10 @@
             <div class="chat-online" id="chatOnline">1 online</div>
           </div>
 
-          <!-- Message list -->
+          <!-- Messages -->
           <div class="msgs-wrap" id="msgs"></div>
 
-          <!-- Chat input -->
+          <!-- Input -->
           <div class="chat-input-area">
             <div class="chat-input-row">
               <input
@@ -280,7 +274,7 @@
         </div>
         <!-- /chat-side -->
 
-        <!-- ══ CENTRE: PLAYER ══ -->
+        <!-- Player -->
         <div
           class="player-col"
           id="playerWrap"
@@ -288,7 +282,7 @@
           onmouseleave="schedHide()"
           onmousemove="onMove()"
         >
-          <!-- Banner shown to guest when host swaps their file -->
+          <!-- Media-changed banner -->
           <div id="change-banner">
             <div class="cb-icon">🔄</div>
             <div class="cb-text">
@@ -301,7 +295,7 @@
             <button class="cb-close" onclick="hideBanner()">×</button>
           </div>
 
-          <!-- Unmute banner: shown to guest after stream connects (autoplay policy requires muted start) -->
+          <!-- Unmute banner (autoplay workaround) -->
           <div
             id="unmute-banner"
             style="
@@ -321,8 +315,8 @@
           >
             <span style="font-size: 1.15rem; flex-shrink: 0">🔊</span>
             <span style="flex: 1; font-size: 0.82rem; color: var(--text)">
-              <strong>Click to enable audio</strong> — browser requires a tap
-              before playing sound
+              <strong>Tap to turn on sound</strong> — browsers block audio
+              until you interact
             </span>
             <button
               onclick="guestEnableAudio()"
@@ -344,8 +338,7 @@
             </button>
           </div>
 
-          <!-- Hidden file inputs — HOST only -->
-          <!-- Initial load -->
+          <!-- File inputs (host) -->
           <input
             type="file"
             id="fileInp"
@@ -353,7 +346,7 @@
             style="display: none"
             onchange="loadFile(this.files[0], false)"
           />
-          <!-- Media swap -->
+          <!-- Swap input -->
           <input
             type="file"
             id="fileChg"
@@ -362,16 +355,16 @@
             onchange="loadFile(this.files[0], true)"
           />
 
-          <!-- Drop zone (host, initial state) -->
+          <!-- Drop zone -->
           <div id="drop-zone">
             <div class="dz-inner">
               <div class="dz-ring"><span class="dz-emoji">🎬</span></div>
               <div class="dz-title">Drop your video</div>
               <div class="dz-sub">
-                File stays 100% on your device — never uploaded.<br />
+                File stays on your device.<br />
                 <em
-                  >Your guest receives the stream automatically — no file needed
-                  on their end.</em
+                  >Your guest gets the stream — no file needed
+                  on their side.</em
                 >
               </div>
               <button
@@ -387,29 +380,29 @@
           </div>
           <!-- /drop-zone -->
 
-          <!-- Guest waiting screen -->
+          <!-- Guest wait screen -->
           <div id="guest-wait">
             <div class="gw-inner">
               <div class="gw-e">🍿</div>
               <div class="gw-title" id="gwTitle">Waiting for host…</div>
               <div class="gw-sub" id="gwSub">
-                The host will stream the video directly to you.<br />
-                <em>No file needed — just sit back!</em>
+                The host streams the video to you.<br />
+                <em>No file needed on your side.</em>
               </div>
             </div>
           </div>
           <!-- /guest-wait -->
 
-          <!-- The video element -->
+          <!-- Video -->
           <video id="vid" tabindex="-1" playsinline></video>
 
-          <!-- HOST audio — vid is muted for captureStream; host hears through this element -->
+          <!-- Host audio (vid is muted; host hears via this) -->
           <audio id="hostAud" style="display: none"></audio>
 
-          <!-- Player controls overlay -->
+          <!-- Controls -->
           <div id="ctrl">
             <div class="ctrl-inner">
-              <!-- Seek / progress bar -->
+              <!-- Progress bar -->
               <div
                 class="prog-area"
                 id="progArea"
@@ -426,16 +419,16 @@
                 <span id="tDur">0:00</span>
               </div>
 
-              <!-- Button row -->
+              <!-- Buttons -->
               <div class="btns-row">
-                <!-- Skip back 10 s -->
+                <!-- Back 10s -->
                 <button class="cb" onclick="skip(-10)" title="Back 10s">
                   <svg viewBox="0 0 24 24">
                     <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
                   </svg>
                 </button>
 
-                <!-- Play / Pause (large) -->
+                <!-- Play/pause -->
                 <button
                   class="cb cb-play"
                   id="btnPP"
@@ -450,7 +443,7 @@
                   </svg>
                 </button>
 
-                <!-- Skip forward 10 s -->
+                <!-- Forward 10s -->
                 <button class="cb" onclick="skip(10)" title="Forward 10s">
                   <svg viewBox="0 0 24 24">
                     <path
@@ -459,7 +452,7 @@
                   </svg>
                 </button>
 
-                <!-- Mute / Unmute -->
+                <!-- Mute -->
                 <button
                   class="cb"
                   id="btnMute"
@@ -478,7 +471,7 @@
                   </svg>
                 </button>
 
-                <!-- Volume slider -->
+                <!-- Volume -->
                 <div class="vol-wrap">
                   <input
                     class="vol-r"
@@ -494,10 +487,10 @@
 
                 <div class="ctrl-gap"></div>
 
-                <!-- Sync flash indicator -->
+                <!-- Sync badge -->
                 <div class="sync-badge" id="syncBadge">⚡ synced</div>
 
-                <!-- Change media (hidden until file is loaded, shown by JS) -->
+                <!-- Change media (shown by JS) -->
                 <button
                   class="cb"
                   id="btnChgCtrl"
@@ -512,7 +505,7 @@
                   </svg>
                 </button>
 
-                <!-- Floating chat toggle -->
+                <!-- Chat toggle -->
                 <button
                   class="cb"
                   id="btnFChat"
@@ -526,7 +519,7 @@
                   </svg>
                 </button>
 
-                <!-- Fullscreen toggle -->
+                <!-- Fullscreen -->
                 <button class="cb" onclick="toggleFS()" title="Fullscreen (F)">
                   <svg id="icFS" viewBox="0 0 24 24">
                     <path
@@ -546,7 +539,7 @@
           </div>
           <!-- /ctrl -->
 
-          <!-- Floating chat (visible in fullscreen) -->
+          <!-- Floating chat -->
           <div id="fchat">
             <div class="fc-head" id="fcHead">
               <div class="fc-title">Chat</div>
@@ -575,7 +568,7 @@
         </div>
         <!-- /player-col -->
 
-        <!-- ══ RIGHT: INFO PANEL ══ -->
+        <!-- Info panel -->
         <div class="right-panel" id="rightPanel">
           <div class="rp-head">Room Info</div>
           <div class="rp-body">
@@ -629,7 +622,7 @@
               </div>
             </div>
 
-            <!-- Change media button (hidden until file is loaded, shown by JS) -->
+            <!-- Change media btn (shown by JS) -->
             <button
               class="btn-chg"
               id="rpChgBtn"
@@ -651,11 +644,9 @@
     </div>
     <!-- /page-room -->
 
-    <!-- ══════════════════════════════════════════════════
-     MODALS
-══════════════════════════════════════════════════ -->
+    <!-- MODALS -->
 
-    <!-- Room Created -->
+    <!-- Room created -->
     <div class="mbg" id="mRoom">
       <div class="modal">
         <div class="m-head">
@@ -666,8 +657,8 @@
         </div>
         <div class="m-body">
           <p>
-            Your guest will receive the stream directly from your browser.
-            <strong>No storage or intermediate servers used.</strong>
+            Your guest watches the stream straight from your browser.
+            <strong>No servers, no storage.</strong>
           </p>
           <div class="big-code" id="bigCode" onclick="copyCode()"></div>
           <div class="code-hint">Click to copy code</div>
@@ -683,7 +674,7 @@
       </div>
     </div>
 
-    <!-- Change Media Confirm (host) -->
+    <!-- Change media confirm -->
     <div class="mbg" id="mChange">
       <div class="modal">
         <div class="m-head">
@@ -701,11 +692,11 @@
         </div>
         <div class="m-body">
           <p>
-            Swap the media file without disconnecting.
-            <strong>The room and chat stay alive.</strong>
+            Switch the video without dropping the connection.
+            <strong>Room and chat stay open.</strong>
           </p>
           <p style="margin-bottom: 0">
-            Your peer will get a notification to load the new file. Playback
+            Your peer gets a heads-up. Playback
             resets to the start.
           </p>
           <div class="m-btns">
@@ -723,7 +714,7 @@
       </div>
     </div>
 
-    <!-- Refresh Warning -->
+    <!-- Refresh warning -->
     <div class="mbg" id="mRefresh">
       <div class="modal">
         <div class="m-head">
@@ -740,20 +731,19 @@
         <div class="m-body">
           <ul class="warn-list">
             <li>
-              🎬 <strong>Your video file</strong> will be unloaded — you'll need
+              🎬 <strong>Your video</strong> gets unloaded — you'll have
               to pick it again
             </li>
             <li>
-              🔌 <strong>Peer connection</strong> will drop — room ends
-              immediately
+              🔌 <strong>Connection</strong> drops — room ends
+              right away
             </li>
             <li>
-              💬 <strong>Chat history</strong> disappears — it's ephemeral by
-              design
+              💬 <strong>Chat</strong> disappears — it's not saved
             </li>
           </ul>
           <p class="ok-note">
-            ✓ No data is stored anywhere — zero GitHub Pages storage used
+            ✓ Nothing is stored — zero server space used
           </p>
           <div class="m-btns">
             <button class="mb-btn mbg2" onclick="closeM('mRefresh')">
@@ -777,7 +767,7 @@
       </div>
     </div>
 
-    <!-- Leave Confirm -->
+    <!-- Leave confirm -->
     <div class="mbg" id="mLeave">
       <div class="modal">
         <div class="m-head">
@@ -795,8 +785,8 @@
         </div>
         <div class="m-body">
           <p>
-            The room ends immediately. Your peer will be <em>disconnected</em>.
-            This can't be undone.
+            The room closes and your peer gets <em>disconnected</em>.
+            Can't undo this.
           </p>
           <div class="m-btns">
             <button class="mb-btn mbg2" onclick="closeM('mLeave')">Stay</button>
@@ -806,13 +796,13 @@
       </div>
     </div>
 
-    <!-- Toast notification -->
+    <!-- Toast -->
     <div id="toast">
       <div class="t-dot"></div>
       <span id="toastTxt"></span>
     </div>
 
-    <!-- Load app logic (must come after the DOM) -->
+    <!-- App JS -->
     <script src="app.js"></script>
   </body>
 </html>

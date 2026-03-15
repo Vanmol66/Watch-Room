@@ -1,23 +1,10 @@
-/* ═══════════════════════════════════════════════════════
-   watchroom — style.css
-   Sections:
-     1. Themes (CSS variables)
-     2. Base Reset
-     3. Landing Page
-     4. Room Layout — Topbar
-     5. Room Layout — Left Chat Sidebar
-     6. Room Layout — Center Player
-     7. Room Layout — Right Panel
-     8. Floating Chat
-     9. Modals
-    10. Toast
-═══════════════════════════════════════════════════════ */
+/* watchroom — style.css
+   1. Themes  2. Reset  3. Landing  4. Topbar  5. Chat
+   6. Player  7. Right panel  8. Float chat  9. Modals  10. Toast */
 
 @import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap");
 
-/* ───────────────────────────────────────────────────────
-   1. THEME (Simplified to OpenRouter style)
-─────────────────────────────────────────────────────── */
+/* 1. THEME */
 :root {
   --bg: #121212;
   --bg2: #1a1a1a;
@@ -25,7 +12,7 @@
   --surface: #282828;
   --border: #2e2e2e;
   --border2: #3d3d3d;
-  --accent: #ffffff; /* OpenRouter uses high contrast white/black */
+  --accent: #ffffff; /* high contrast */
   --accent2: #e0e0e0;
   --accentbg: rgba(255, 255, 255, 0.05);
   --accentglow: rgba(255, 255, 255, 0.1);
@@ -41,12 +28,12 @@
   --danger: #ff4d4d;
   --success: #00cca3;
   --warn: #ffcc00;
-  --grad: #fff; /* Simplified to solid white for high-end look */
+  --grad: #fff; /* solid white */
   --mesh1: rgba(255, 255, 255, 0.05);
   --mesh2: rgba(255, 255, 255, 0.03);
 }
 
-/* Light Theme Variables */
+/* Light theme */
 :root[data-theme="light"] {
   --bg: #f8f9fa;
   --bg2: #ffffff;
@@ -72,8 +59,7 @@
   --mesh2: rgba(0, 0, 0, 0.02);
 }
 
-/* Theme Toggle Button */
-/* Global theme toggle defaults */
+/* Theme toggle */
 .theme-toggle {
   display: flex;
   align-items: center;
@@ -108,7 +94,7 @@
   border-radius: 10px;
 }
 
-/* Deeper shadow for dark mode */
+/* Dark mode shadow */
 :root[data-theme="midnight"] .theme-toggle {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
@@ -136,9 +122,7 @@
   transform: scale(0.95);
 }
 
-/* ───────────────────────────────────────────────────────
-   2. BASE RESET
-─────────────────────────────────────────────────────── */
+/* 2. RESET */
 *,
 *::before,
 *::after {
@@ -174,9 +158,7 @@ button {
   font-family: inherit;
 }
 
-/* ───────────────────────────────────────────────────────
-   3. LANDING PAGE
-─────────────────────────────────────────────────────── */
+/* 3. LANDING */
 #page-land {
   height: 100vh;
   display: flex;
@@ -189,7 +171,7 @@ button {
   z-index: 1; /* Create stacking context below toggle */
 }
 
-/* Schematic side borders */
+/* Side borders */
 .hatch-side {
   position: absolute;
   top: 0;
@@ -228,7 +210,7 @@ button {
   border-left: 1px solid var(--border);
 }
 
-/* Schematic Background */
+/* Background lines */
 .schematic-bg {
   position: absolute;
   inset: 0;
@@ -327,7 +309,7 @@ button {
   pointer-events: none;
 }
 
-/* Animated mesh background blobs */
+/* Mesh blobs */
 .mesh {
   position: absolute;
   inset: 0;
@@ -425,7 +407,7 @@ button {
   }
 }
 
-/* Theme colour dots — landing */
+/* Theme dots — landing */
 .theme-row {
   display: flex;
   gap: 9px;
@@ -465,7 +447,7 @@ button {
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
 
-/* Host / Join Action Row */
+/* Host / Join row */
 .land-actions {
   display: flex;
   gap: 16px;
@@ -511,7 +493,7 @@ button {
   background: var(--accentbg);
 }
 
-/* Reference Cards Redesigned as separate Code Cards */
+/* Cards */
 .land-actions-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -570,7 +552,7 @@ button {
   margin-bottom: auto;
 }
 
-/* Inputs inside cards */
+/* Card inputs */
 .inp {
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -592,7 +574,7 @@ button {
   border-color: #555;
 }
 
-/* Custom card button to match reference */
+/* Card button */
 .btn-card {
   width: 100%;
   padding: 14px;
@@ -614,7 +596,7 @@ button {
   background: var(--bg3);
 }
 
-/* Generic buttons */
+/* Buttons */
 .btn {
   width: 100%;
   padding: 13px 18px;
@@ -683,9 +665,7 @@ button {
   font-weight: 700;
 }
 
-/* ───────────────────────────────────────────────────────
-   4. ROOM LAYOUT — TOPBAR
-─────────────────────────────────────────────────────── */
+/* 4. TOPBAR */
 #page-room {
   display: none;
   height: 100vh;
@@ -737,7 +717,7 @@ button {
   flex-shrink: 0;
 }
 
-/* Status / role chips */
+/* Chips */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -767,7 +747,7 @@ button {
   font-weight: 500;
 }
 
-/* Peer connection dot */
+/* Peer dot */
 .pdot {
   width: 7px;
   height: 7px;
@@ -794,7 +774,7 @@ button {
   }
 }
 
-/* Theme dots — topbar (smaller) */
+/* Theme dots — topbar */
 .tbar-themes {
   display: flex;
   gap: 5px;
@@ -850,7 +830,7 @@ button {
   color: var(--danger);
 }
 
-/* Room body (3 columns) */
+/* Room body */
 .room-body {
   flex: 1;
   display: flex;
@@ -858,9 +838,7 @@ button {
   min-height: 0;
 }
 
-/* ───────────────────────────────────────────────────────
-   5. LEFT CHAT SIDEBAR
-─────────────────────────────────────────────────────── */
+/* 5. CHAT SIDEBAR */
 .chat-side {
   width: 320px;
   flex-shrink: 0;
@@ -915,7 +893,7 @@ button {
   box-shadow: 0 0 8px var(--success);
 }
 
-/* Messages scroll area */
+/* Messages */
 .msgs-wrap {
   flex: 1;
   overflow-y: auto;
@@ -927,7 +905,7 @@ button {
   min-height: 0;
 }
 
-/* Message bubbles */
+/* Bubbles */
 .mb {
   max-width: 92%;
   display: flex;
@@ -958,7 +936,7 @@ button {
   color: var(--accent2);
 }
 
-/* User bubbles refined */
+/* Bubble text */
 .mb-txt {
   font-size: 0.85rem;
   line-height: 1.6;
@@ -969,14 +947,14 @@ button {
 }
 .mb.me .mb-txt {
   background: #00bbf0;
-  color: #fff; /* Ensuring text stays white on light blue */
+  color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
 }
 .mb.them .mb-txt {
   background: #7c73e6;
-  color: #fff; /* Ensuring text stays white on purple */
+  color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
@@ -993,7 +971,7 @@ button {
   text-align: center;
 }
 
-/* Chat text input */
+/* Chat input */
 .chat-input-area {
   border-top: 1px solid var(--border);
   background: var(--accentbg);
@@ -1064,9 +1042,7 @@ button {
   text-align: center;
 }
 
-/* ───────────────────────────────────────────────────────
-   6. CENTER PLAYER
-─────────────────────────────────────────────────────── */
+/* 6. PLAYER */
 .player-col {
   flex: 1;
   display: flex;
@@ -1077,7 +1053,7 @@ button {
   min-width: 0;
 }
 
-/* Banner shown to guest when host changes media file */
+/* Media-changed banner */
 #change-banner {
   position: absolute;
   top: 0;
@@ -1162,7 +1138,7 @@ button {
   color: #fff;
 }
 
-/* File drop zone */
+/* Drop zone */
 #drop-zone {
   position: absolute;
   inset: 0;
@@ -1264,7 +1240,7 @@ button {
   opacity: 0.92;
 }
 
-/* Guest "load your copy" waiting screen */
+/* Guest wait screen */
 #guest-wait {
   position: absolute;
   inset: 0;
@@ -1313,7 +1289,7 @@ button {
   font-weight: 600;
 }
 
-/* Video element */
+/* Video */
 #vid {
   width: 100%;
   height: 100%;
@@ -1323,7 +1299,7 @@ button {
   outline: none;
 }
 
-/* Player controls overlay (auto-hides) */
+/* Controls overlay */
 #ctrl {
   position: absolute;
   bottom: 0;
@@ -1347,7 +1323,7 @@ button {
   padding: 14px 22px 18px;
 }
 
-/* Progress / seek bar */
+/* Progress bar */
 .prog-area {
   margin-bottom: 10px;
   cursor: pointer;
@@ -1397,7 +1373,7 @@ button {
   margin-top: 5px;
 }
 
-/* Control button row */
+/* Button row */
 .btns-row {
   display: flex;
   align-items: center;
@@ -1431,7 +1407,7 @@ button {
   transform: scale(1.08);
 }
 
-/* Large gradient play/pause button */
+/* Play/pause button */
 .cb-play {
   width: 50px;
   height: 50px;
@@ -1449,14 +1425,14 @@ button {
   box-shadow: 0 6px 26px var(--accentglow);
 }
 
-/* Active / highlighted state for cb */
+/* Active state */
 .cb.lit {
   background: var(--accentbg);
   border-color: var(--accent);
   color: var(--accent2);
 }
 
-/* Volume slider */
+/* Volume */
 .vol-wrap {
   display: flex;
   align-items: center;
@@ -1487,7 +1463,7 @@ input.vol-r::-webkit-slider-thumb {
   flex: 1;
 }
 
-/* Sync flash badge */
+/* Sync badge */
 .sync-badge {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.59rem;
@@ -1505,9 +1481,7 @@ input.vol-r::-webkit-slider-thumb {
   opacity: 1;
 }
 
-/* ───────────────────────────────────────────────────────
-   7. RIGHT PANEL
-─────────────────────────────────────────────────────── */
+/* 7. RIGHT PANEL */
 .right-panel {
   width: 218px;
   flex-shrink: 0;
@@ -1571,7 +1545,7 @@ input.vol-r::-webkit-slider-thumb {
   color: var(--warn);
 }
 
-/* Keyboard shortcuts list */
+/* Shortcuts */
 .shortcuts {
   background: var(--bg3);
   border: 1px solid var(--border);
@@ -1606,7 +1580,7 @@ input.vol-r::-webkit-slider-thumb {
   color: var(--muted);
 }
 
-/* Change media button in right panel (hidden until file is loaded) */
+/* Change media btn */
 .btn-chg {
   width: 100%;
   padding: 10px;
@@ -1618,7 +1592,7 @@ input.vol-r::-webkit-slider-thumb {
   font-family: "Plus Jakarta Sans", sans-serif;
   font-size: 0.8rem;
   font-weight: 600;
-  display: none; /* shown by JS after loadFile() */
+  display: none; /* shown by JS */
   align-items: center;
   justify-content: center;
   gap: 7px;
@@ -1635,9 +1609,7 @@ input.vol-r::-webkit-slider-thumb {
   color: var(--accent);
 }
 
-/* ───────────────────────────────────────────────────────
-   8. FLOATING CHAT (visible in fullscreen)
-─────────────────────────────────────────────────────── */
+/* 8. FLOATING CHAT */
 #fchat {
   position: absolute;
   bottom: 108px;
@@ -1799,9 +1771,7 @@ input.vol-r::-webkit-slider-thumb {
   transform: translateX(2px);
 }
 
-/* ───────────────────────────────────────────────────────
-   9. MODALS
-─────────────────────────────────────────────────────── */
+/* 9. MODALS */
 .mbg {
   display: none;
   position: fixed;
@@ -1903,7 +1873,7 @@ input.vol-r::-webkit-slider-thumb {
   font-weight: 600;
 }
 
-/* Large room code display */
+/* Room code display */
 .big-code {
   background: var(--accentbg);
   border: 2px dashed var(--accent);
@@ -1932,7 +1902,7 @@ input.vol-r::-webkit-slider-thumb {
   letter-spacing: 0.08em;
 }
 
-/* Warning list in refresh modal */
+/* Refresh warning list */
 .warn-list {
   list-style: none;
   margin-bottom: 16px;
@@ -1960,7 +1930,7 @@ input.vol-r::-webkit-slider-thumb {
   margin-bottom: 0 !important;
 }
 
-/* Modal action buttons */
+/* Modal buttons */
 .m-btns {
   display: flex;
   gap: 9px;
@@ -2014,9 +1984,7 @@ input.vol-r::-webkit-slider-thumb {
   border-color: var(--danger);
 }
 
-/* ───────────────────────────────────────────────────────
-   10. TOAST NOTIFICATION
-─────────────────────────────────────────────────────── */
+/* 10. TOAST */
 #toast {
   position: fixed;
   bottom: 20px;
