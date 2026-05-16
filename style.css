@@ -375,13 +375,14 @@ button {
   font-size: clamp(3rem, 10vw, 6rem);
   line-height: 0.9;
   font-weight: 400;
-  color: var(--text);
+  color: oklch(39.6% 0.141 25.723);
   margin-bottom: 4px;
   animation: fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .land-logo i {
   font-style: italic;
   opacity: 0.9;
+  color: var(--text);
 }
 
 .land-sub {
@@ -394,6 +395,13 @@ button {
   text-transform: none;
   font-weight: 400;
   animation: fadeUp 0.8s 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.land-sub-accent {
+  background: linear-gradient(90deg, oklch(50.5% 0.213 27.518), oklch(39.6% 0.141 25.723));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 600;
 }
 
 @keyframes fadeUp {
@@ -698,10 +706,13 @@ button {
   font-family: "Instrument Serif", serif;
   font-size: 1.8rem;
   font-style: italic;
-  color: var(--text);
+  color: oklch(39.6% 0.141 25.723);
   line-height: 1;
   white-space: nowrap;
   flex-shrink: 0;
+}
+.tbar-logo i {
+  color: var(--text);
 }
 .tbar-mid {
   display: flex;
